@@ -234,7 +234,7 @@ class TestSystemdUnits(unittest.TestCase):
 
 
 class TestDockerComposeArtifacts(unittest.TestCase):
-    """Docker deployment must expose only the frontend on localhost:8080."""
+    """Docker deployment must expose only the frontend on localhost:8190."""
 
     COMPOSE = REPO_ROOT / "docker-compose.yml"
     NGINX = REPO_ROOT / "frontend" / "nginx.conf"
@@ -249,7 +249,7 @@ class TestDockerComposeArtifacts(unittest.TestCase):
 
         data = yaml.safe_load(self.COMPOSE.read_text())
         ports = data["services"]["frontend"]["ports"]
-        self.assertIn("127.0.0.1:8080:80", ports)
+        self.assertIn("127.0.0.1:8190:80", ports)
 
     def test_backend_not_directly_published(self):
         import yaml
@@ -260,9 +260,9 @@ class TestDockerComposeArtifacts(unittest.TestCase):
     def test_nginx_proxies_api_and_healthz(self):
         text = self.NGINX.read_text()
         self.assertIn("location /api/", text)
-        self.assertIn("proxy_pass http://backend:8080/api/", text)
+        self.assertIn("proxy_pass http://backend:8190/api/", text)
         self.assertIn("location /healthz", text)
-        self.assertIn("proxy_pass http://backend:8080/healthz", text)
+        self.assertIn("proxy_pass http://backend:8190/healthz", text)
 
 
 class TestVariablesDoc(unittest.TestCase):
@@ -293,7 +293,7 @@ class TestVariablesDoc(unittest.TestCase):
         text = self.DOC.read_text()
         m = re.search(r"\|\s*`?listen_port`?\s*\|\s*`?(\d+)`?\s*\|", text)
         self.assertIsNotNone(m)
-        self.assertEqual(m.group(1), "8080")
+        self.assertEqual(m.group(1), "8190")
 
 
 class TestDocsCrossReference(unittest.TestCase):

@@ -1,7 +1,7 @@
 """
 End-to-end tests for the fully deployed stack (Phase 3E).
 
-Tests the running docker-compose services via nginx (127.0.0.1:8080).
+Tests the running docker-compose services via nginx (127.0.0.1:8190).
 The same paths are exposed over Tailscale at https://gtr.tail414c32.ts.net.
 
 Prerequisites:
@@ -20,7 +20,7 @@ import unittest
 import urllib.request
 from urllib.error import HTTPError, URLError
 
-DEFAULT_BASE = "http://127.0.0.1:8080"
+DEFAULT_BASE = "http://127.0.0.1:8190"
 BASE = os.environ.get("BASE_URL", DEFAULT_BASE).rstrip("/")
 
 TIMEOUT = 15.0

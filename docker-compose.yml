@@ -1,13 +1,6 @@
 services:
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        http_proxy: ""
-        https_proxy: ""
-        HTTP_PROXY: ""
-        HTTPS_PROXY: ""
+    image: ghcr.io/lynskylate/corp-finance-monitor-backend:${IMAGE_TAG:-latest}
     container_name: cfm-backend
     restart: unless-stopped
     volumes:
@@ -19,13 +12,11 @@ services:
       - TZ=Asia/Shanghai
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: ghcr.io/lynskylate/corp-finance-monitor-frontend:${IMAGE_TAG:-latest}
     container_name: cfm-frontend
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:80"
+      - "127.0.0.1:8190:80"
     depends_on:
       - backend
     networks:
@@ -36,6 +27,3 @@ services:
 networks:
   cfm-net:
     driver: bridge
-
-volumes:
-  cfm-data:

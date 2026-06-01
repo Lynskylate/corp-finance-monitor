@@ -11,7 +11,7 @@ dist_path: "{{ repo_path }}/dist"
 
 # API service
 listen_host: 127.0.0.1
-listen_port: 8080
+listen_port: 8190
 service_name: cfm-api
 
 # Sync timer

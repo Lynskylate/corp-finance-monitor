@@ -98,7 +98,7 @@ python3 main.py subscribe add -c config.yaml \
 Start the HTTP API:
 
 ```bash
-python3 main.py serve -c config.yaml --host 127.0.0.1 --port 8080
+python3 main.py serve -c config.yaml --host 127.0.0.1 --port 8190
 ```
 
 ## HTTP API
@@ -106,25 +106,25 @@ python3 main.py serve -c config.yaml --host 127.0.0.1 --port 8080
 Health:
 
 ```bash
-curl http://127.0.0.1:8080/healthz
+curl http://127.0.0.1:8190/healthz
 ```
 
 List filings:
 
 ```bash
-curl 'http://127.0.0.1:8080/api/filings?source=cninfo&stock_code=000725'
+curl 'http://127.0.0.1:8190/api/filings?source=cninfo&stock_code=000725'
 ```
 
 List runs:
 
 ```bash
-curl 'http://127.0.0.1:8080/api/runs?limit=20'
+curl 'http://127.0.0.1:8190/api/runs?limit=20'
 ```
 
 Create subscription:
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/subscriptions \
+curl -X POST http://127.0.0.1:8190/api/subscriptions \
   -H 'Content-Type: application/json' \
   -d '{"name":"boe-annual","source":"cninfo","stock_code":"000725","kind":"annual","target":"local:test"}'
 ```
@@ -132,7 +132,7 @@ curl -X POST http://127.0.0.1:8080/api/subscriptions \
 Trigger sync:
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/sync \
+curl -X POST http://127.0.0.1:8190/api/sync \
   -H 'Content-Type: application/json' \
   -d '{"sources":["cninfo"]}'
 ```
@@ -142,7 +142,7 @@ curl -X POST http://127.0.0.1:8080/api/sync \
 Phase 3 adds a containerized frontend/backend path:
 
 ```text
-Browser -> :443 (tailscale serve) -> 127.0.0.1:8080 -> nginx -> /api -> backend:8080
+Browser -> :443 (tailscale serve) -> 127.0.0.1:8190 -> nginx -> /api -> backend:8190
 ```
 
 Quick start:

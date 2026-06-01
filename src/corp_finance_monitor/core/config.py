@@ -39,7 +39,7 @@ class EngineConfig:
 @dataclass
 class APIConfig:
     host: str = "0.0.0.0"
-    port: int = 8080
+    port: int = 8190
     enabled: bool = True
 
 

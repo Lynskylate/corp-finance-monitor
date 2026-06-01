@@ -21,7 +21,7 @@ ls -la dist/corp_finance_monitor-*.whl
 test -s dist/corp_finance_monitor-*.whl || { echo "WHEEL MISSING"; exit 1; }
 
 # 2. Confirm target ports are free
-ss -ltn '( sport = :8080 )' | grep -q LISTEN && { echo "PORT 8080 BUSY"; exit 1; }
+ss -ltn '( sport = :8190 )' | grep -q LISTEN && { echo "PORT 8190 BUSY"; exit 1; }
 
 # 3. Confirm uv (or pip) is available
 command -v uv || command -v pip3 || { echo "NO INSTALLER"; exit 1; }
@@ -78,7 +78,7 @@ journalctl -u cfm-api.service -n 100 --no-pager
 
 A healthy `cfm-api` should show `Active: active (running)` and
 recent log lines from `cfm.api` logger (e.g. `HTTP API listening on
-127.0.0.1:8080`).
+127.0.0.1:8190`).
 
 ### 2. Manual sync
 
@@ -110,12 +110,12 @@ sqlite3 data/.cfm_state/state.db "SELECT id,started_at,fetched,failed FROM run_l
 
 ```bash
 # Create
-curl -sS -X POST http://127.0.0.1:8080/api/subscriptions \
+curl -sS -X POST http://127.0.0.1:8190/api/subscriptions \
   -H 'Content-Type: application/json' \
   -d '{"name":"verify-test","source":"cninfo","stock_code":"000725","kind":"annual","target":"https://example.com/wh"}'
 
 # List
-curl -sS 'http://127.0.0.1:8080/api/subscriptions?active_only=true'
+curl -sS 'http://127.0.0.1:8190/api/subscriptions?active_only=true'
 ```
 
 Expected: the new subscription appears with a numeric `id`. Clean up
@@ -128,7 +128,7 @@ sqlite3 data/.cfm_state/state.db "DELETE FROM subscriptions WHERE name='verify-t
 ### 5. Run history
 
 ```bash
-curl -sS 'http://127.0.0.1:8080/api/runs?limit=5' | python3 -m json.tool
+curl -sS 'http://127.0.0.1:8190/api/runs?limit=5' | python3 -m json.tool
 ```
 
 A healthy service has at least one row (the manual sync from step 2).
@@ -161,7 +161,7 @@ After a successful run, capture and post to the task thread:
   echo "=== HEAD ==="; git log --oneline -3; \
   echo "=== systemd status ==="; \
   systemctl is-active cfm-api cfm-sync.timer; \
-  echo "=== /healthz ==="; curl -sS http://127.0.0.1:8080/healthz; echo; \
+  echo "=== /healthz ==="; curl -sS http://127.0.0.1:8190/healthz; echo; \
   echo "=== verify_deploy.sh ==="; ./scripts/verify_deploy.sh; \
   echo "=== tests ==="; .venv/bin/python -m unittest discover -s tests -p "test_*.py"; \
 } | tee deploy-verification.log

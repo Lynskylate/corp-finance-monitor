@@ -18,7 +18,7 @@ All variables can be overridden via `--extra-vars` when running ansible-playbook
 | Variable       | Default       | Description                    |
 |----------------|---------------|--------------------------------|
 | `listen_host`  | `127.0.0.1`   | API bind address               |
-| `listen_port`  | `8080`        | API bind port                  |
+| `listen_port`  | `8190`        | API bind port                  |
 | `service_name` | `cfm-api`     | systemd service unit name      |
 
 ## Sync Timer

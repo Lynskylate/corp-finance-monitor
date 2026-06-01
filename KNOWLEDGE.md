@@ -18,7 +18,7 @@
   - 状态：`data/.cfm_state/state.db` (filing_state / run_log / subscriptions)
 - **入口**：
   - CLI: `python3 main.py {run|sync|list|runs|subscribe|serve|init} -c config.yaml`
-  - HTTP: `python3 main.py serve -c config.yaml` (默认 `127.0.0.1:8080`)
+  - HTTP: `python3 main.py serve -c config.yaml` (默认 `127.0.0.1:8190`)
 
 ## 2. 架构与模块布局
 
@@ -157,7 +157,7 @@ python3 /home/lynskylate/corp-finance-monitor/main.py sync -c config.yaml --sour
 python3 /home/lynskylate/corp-finance-monitor/main.py sync -c config.yaml --source cninfo --since full
 
 # 启动 API
-python3 /home/lynskylate/corp-finance-monitor/main.py serve -c config.yaml --host 127.0.0.1 --port 8080
+python3 /home/lynskylate/corp-finance-monitor/main.py serve -c config.yaml --host 127.0.0.1 --port 8190
 
 # 添加订阅
 python3 /home/lynskylate/corp-finance-monitor/main.py subscribe add -c config.yaml \
@@ -165,7 +165,7 @@ python3 /home/lynskylate/corp-finance-monitor/main.py subscribe add -c config.ya
   --target https://example.com/webhook
 
 # 触发 API 同步
-curl -X POST http://127.0.0.1:8080/api/sync \
+curl -X POST http://127.0.0.1:8190/api/sync \
   -H 'Content-Type: application/json' -d '{"sources":["cninfo"]}'
 ```
 

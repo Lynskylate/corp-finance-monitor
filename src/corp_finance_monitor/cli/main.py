@@ -212,7 +212,7 @@ state_store:
 api:
   enabled: true
   host: 127.0.0.1
-  port: 8080
+  port: 8190
 
 sources:
   cninfo:
