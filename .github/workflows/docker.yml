@@ -79,6 +79,7 @@ jobs:
             "service_name": "${{ matrix.service_name }}",
             "image_repository": "${{ matrix.image_repository }}",
             "image_digest": "${{ steps.build.outputs.digest }}",
+            "image_tag": "${{ github.sha }}",
             "dockerfile": "${{ matrix.dockerfile }}",
             "internal_port": ${{ matrix.internal_port }},
             "healthcheck_path": "${{ matrix.healthcheck_path }}",

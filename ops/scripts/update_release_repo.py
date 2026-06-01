@@ -59,10 +59,13 @@ def update_stacks(release_repo: Path, environment: str, metadata: dict[str, dict
             if (
                 container.get("image_repository") != payload["image_repository"]
                 or container.get("image_digest") != payload["image_digest"]
+                or container.get("image_tag") != payload.get("image_tag")
             ):
                 changed = True
                 container["image_repository"] = payload["image_repository"]
                 container["image_digest"] = payload["image_digest"]
+                if payload.get("image_tag"):
+                    container["image_tag"] = payload["image_tag"]
         if changed:
             stack["rollback_history"] = record_previous_release(previous_release) + previous_history
             stack["updated_at"] = datetime.now(timezone.utc).isoformat()
