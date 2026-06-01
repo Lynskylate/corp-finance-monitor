@@ -118,6 +118,13 @@ jobs:
           merge-multiple: true
           path: release-metadata
 
+      - name: Sync release repo GHCR pull token
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_CONFIG_REPO_TOKEN }}
+          RELEASE_CONFIG_REPO_TOKEN: ${{ secrets.RELEASE_CONFIG_REPO_TOKEN }}
+        run: |
+          printf '%s' "$RELEASE_CONFIG_REPO_TOKEN" | gh secret set GHCR_READ_TOKEN --repo "${{ env.RELEASE_CONFIG_REPOSITORY }}"
+
       - name: Check out release config repository
         uses: actions/checkout@v4
         with:
