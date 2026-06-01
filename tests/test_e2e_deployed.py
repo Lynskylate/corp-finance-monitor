@@ -8,17 +8,20 @@ Prerequisites:
     docker compose up -d   (backend + frontend + nginx)
 
 Run:
-    python3 -m unittest tests/test_e2e_deployed.py -v
+    RUN_DEPLOYED_E2E=1 python3 -m unittest tests/test_e2e_deployed.py -v
 
 If you want to test the tailnet HTTPS endpoint instead of localhost,
 set BASE_URL env var:
-    BASE_URL=https://gtr.tail414c32.ts.net python3 -m unittest tests/test_e2e_deployed.py -v
+    RUN_DEPLOYED_E2E=1 BASE_URL=https://gtr.tail414c32.ts.net python3 -m unittest tests/test_e2e_deployed.py -v
 """
 import json
 import os
 import unittest
 import urllib.request
 from urllib.error import HTTPError, URLError
+
+if os.environ.get("RUN_DEPLOYED_E2E") != "1":
+    raise unittest.SkipTest("set RUN_DEPLOYED_E2E=1 to run deployed-stack E2E checks")
 
 DEFAULT_BASE = "http://127.0.0.1:8190"
 BASE = os.environ.get("BASE_URL", DEFAULT_BASE).rstrip("/")

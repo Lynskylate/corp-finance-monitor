@@ -1,41 +1,23 @@
 # Tests for corp-finance-monitor
 
-Run with the standard library `unittest` (no extra deps required):
+Run the standard unit and integration suite with:
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-Or one file at a time:
+Run deployed-stack checks only when a live service is available:
 
 ```bash
-PYTHONPATH=src python3 -m unittest tests.test_cninfo_classification -v
-PYTHONPATH=src python3 -m unittest tests.test_sqlite_state_concurrency -v
-PYTHONPATH=src python3 -m unittest tests.test_api_smoke -v
+RUN_DEPLOYED_E2E=1 PYTHONPATH=src python3 -m unittest tests.test_e2e_deployed -v
+RUN_DEPLOYED_E2E=1 BASE_URL=https://gtr.tail414c32.ts.net PYTHONPATH=src python3 -m unittest tests.test_e2e_deployed -v
 ```
 
 ## Layout
 
-- `conftest.py` — adds `src/` to `sys.path` so tests can import the package
-  without `pip install -e .`.
-- `test_cninfo_classification.py` — boundary tests for `_detect_kind` /
-  `CATEGORY_MAP` in `src/corp_finance_monitor/sources/cninfo.py`.
-  Covers ANNUAL, ANNUAL_SUMMARY (→OTHER), SEMI, Q1, Q3, and OTHER buckets.
-- `test_sqlite_state_concurrency.py` — multi-threaded tests of
-  `SQLiteStateStore` (record_filing / record_run / create_subscription,
-  has_filing, last_successful_run_start). Verifies the `check_same_thread=False`
-  + `RLock` contract empirically.
-- `test_api_smoke.py` — exercises the real `ThreadingHTTPServer` end-to-end:
-  `/healthz`, `/api/filings`, `/api/filings/<source>/<source_id>`,
-  `/api/runs`, `/api/subscriptions` (POST/GET), `/api/sync`
-  (200 + 409 under lock contention + end-to-end fetch via a `FakeSource`).
-
-## Dependencies
-
-- Python ≥ 3.10
-- `requests`, `pyyaml` (project deps)
-- Standard library only: `unittest`, `threading`, `concurrent.futures`,
-  `urllib`, `socket`, `tempfile`, `shutil`
-
-Pytest is not required, but if available the same files are discoverable
-via `pytest tests/`.
+- `conftest.py` adds `src/` to `sys.path` so tests can import the package without `pip install -e .`.
+- `test_cninfo_classification.py` covers filing-kind classification boundaries.
+- `test_sqlite_state_concurrency.py` exercises SQLite state-store locking and persistence behavior.
+- `test_api_smoke.py` runs the FastAPI app end-to-end against a local in-process `uvicorn` server.
+- `test_e2e_deployed.py` checks a live deployed stack and is skipped unless `RUN_DEPLOYED_E2E=1` is set.
+- `test_release_contract.py` verifies the new release-contract files and workflow integration.
