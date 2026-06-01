@@ -1,0 +1,40 @@
+# corp-finance-monitor 配置
+# 数据源配置: 每个source定义watchlist（监控的股票和报告类型）
+
+engine:
+  run_once: true       # true=执行一轮后退出; false=持续轮询
+  interval_minutes: 360  # 轮询间隔(仅run_once=false时生效)
+  fetch_delay_seconds: 0.5
+
+storage:
+  backend: disk         # 目前仅支持disk
+  base_dir: ./data      # 数据存储根目录
+
+state_store:
+  backend: sqlite
+  path: ./data/.cfm_state/state.db
+
+api:
+  enabled: true
+  host: 127.0.0.1
+  port: 8080
+
+sources:
+  # --- A股 定期报告 ---
+  cninfo:
+    watchlist:
+      - stock: "000725"
+        org_id: "gssz0000725"
+        kinds: [annual, semi, q1, q3]
+
+  # --- 上交所 招股书 ---
+  sse:
+    watchlist: []
+
+  # --- 港股 财报/招股书 ---
+  hkex:
+    watchlist:
+      - stock: "00700"
+        kinds: [annual, interim]
+      - stock: "09988"
+        kinds: [annual, interim]
