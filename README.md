@@ -188,6 +188,8 @@ The detailed runbook lives in `docs/TAILSCALE_SERVE.md`.
 project repo -> build images -> release config PR -> controlled runner deploy
 ```
 
+当前生产发布由 `gtr-release-config` 的受控 self-hosted runner 在 Tencent 节点执行。
+
 ## Verified
 
 Validated on June 1, 2026:
