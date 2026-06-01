@@ -20,6 +20,12 @@ CATEGORY_MAP = {
 }
 
 def _detect_kind(title: str) -> FilingKind:
+    # NOTE on intent: the rule below is intentionally asymmetric on purpose
+    # and verified by tests/test_cninfo_classification.py:
+    #   * "半年度报告摘要" / "中期报告"     -> SEMI  (摘要不过滤, 仍视为中报)
+    #   * "年度报告摘要"                  -> OTHER (年报摘要被排除)
+    # Rationale: 半年报披露窗口短, 摘要与正文差异较小, 工程上归入同一类
+    # 便于下游按 kind 拉取; 年报摘要与年报正文差异大, 单独归类避免误用。
     if "半年度报告" in title or "中期报告" in title:
         return FilingKind.SEMI
     if "一季度报告" in title or "第一季度" in title:
