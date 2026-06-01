@@ -32,7 +32,7 @@ All variables can be overridden via `--extra-vars` when running ansible-playbook
 
 | Variable          | Default | Description                                      |
 |-------------------|---------|--------------------------------------------------|
-| `install_method`  | `pip`   | `pip` (local .whl) or `uv` (uv pip install)      |
+| `install_method`  | `uv`    | `uv` (default) or `pip` (fallback, local .whl)    |
 
 ## OS User
 
