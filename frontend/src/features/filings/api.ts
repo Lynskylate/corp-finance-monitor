@@ -6,12 +6,16 @@ export async function listFilings(params: {
   offset?: number
   stockCode?: string
   source?: string
+  kind?: string
+  since?: string
 }) {
   const search = new URLSearchParams()
   if (params.limit) search.set('limit', String(params.limit))
   if (params.offset) search.set('offset', String(params.offset))
   if (params.stockCode) search.set('stock_code', params.stockCode)
   if (params.source) search.set('source', params.source)
+  if (params.kind) search.set('kind', params.kind)
+  if (params.since) search.set('since', params.since)
 
   const data = await fetchJson<FilingListResponse>(`/api/filings?${search.toString()}`)
   return {

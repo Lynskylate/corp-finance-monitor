@@ -4,16 +4,33 @@ import { useMemo, useState } from 'react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { listFilings } from '@/features/filings/api'
-import { LatestUpdatesPanel } from '@/features/filings/components/latest-updates-panel'
+import { LatestUpdatesPanel, PAGE_SIZE, type LatestFilterState } from '@/features/filings/components/latest-updates-panel'
 import { CodeSearchPanel } from '@/features/lookup/components/code-search-panel'
+
+const INITIAL_FILTERS: LatestFilterState = {
+  source: '',
+  kind: '',
+  page: 0,
+}
 
 export function HomePage() {
   const [stockCodeInput, setStockCodeInput] = useState('')
   const [activeStockCode, setActiveStockCode] = useState('')
+  const [filters, setFilters] = useState<LatestFilterState>(INITIAL_FILTERS)
+
+  function handleFiltersChange(patch: Partial<LatestFilterState>) {
+    setFilters((prev) => ({ ...prev, ...patch }))
+  }
 
   const latestQuery = useQuery({
-    queryKey: ['latest-filings'],
-    queryFn: () => listFilings({ limit: 20 }),
+    queryKey: ['latest-filings', filters],
+    queryFn: () =>
+      listFilings({
+        limit: PAGE_SIZE,
+        offset: filters.page * PAGE_SIZE,
+        source: filters.source || undefined,
+        kind: filters.kind || undefined,
+      }),
   })
 
   const stockQuery = useQuery({
@@ -26,8 +43,8 @@ export function HomePage() {
     () => [
       {
         label: '最新窗口',
-        value: String(latestQuery.data?.items.length ?? 0),
-        hint: '前端默认拉最近 20 条',
+        value: String(latestQuery.data?.total ?? 0),
+        hint: '命中公告总数',
         icon: Radar,
       },
       {
@@ -45,11 +62,11 @@ export function HomePage() {
       {
         label: '后续扩展',
         value: '∞',
-        hint: '分页、过滤、订阅都可继续叠',
+        hint: '订阅、推送、更多来源',
         icon: FileStack,
       },
     ],
-    [latestQuery.data?.items.length],
+    [latestQuery.data?.total],
   )
 
   return (
@@ -64,7 +81,7 @@ export function HomePage() {
               把企业公告流变成一个可扫、可查、可继续扩展的操作台。
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
-              这一版先把“最近发生什么”和“某个代码最近出了什么”两条主路径打通，给后续 agent
+              这一版先把"最近发生什么"和"某个代码最近出了什么"两条主路径打通，给后续 agent
               一个稳定的前端目录、数据流和 UI 基座。
             </p>
           </CardContent>
@@ -97,6 +114,8 @@ export function HomePage() {
         items={latestQuery.data?.items ?? []}
         total={latestQuery.data?.total ?? 0}
         isLoading={latestQuery.isLoading}
+        filters={filters}
+        onFiltersChange={handleFiltersChange}
       />
 
       <CodeSearchPanel
