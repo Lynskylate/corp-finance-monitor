@@ -124,6 +124,7 @@ export function HomePage() {
         onSubmit={() => setActiveStockCode(stockCodeInput.trim())}
         items={stockQuery.data?.items ?? []}
         isLoading={stockQuery.isLoading}
+        error={stockQuery.error ?? null}
       />
     </div>
   )

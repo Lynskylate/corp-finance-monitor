@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ExternalLink, FolderSearch } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ExternalLink, FolderSearch } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -8,17 +8,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { getFilingDetail } from '@/features/filings/api'
 import { formatDateTime, formatKind } from '@/lib/format'
+import { ApiError } from '@/lib/api-client'
 
 export function FilingDetailPage() {
   const params = useParams<{ source: string; sourceId: string }>()
+  const hasParams = Boolean(params.source && params.sourceId)
 
   const detailQuery = useQuery({
     queryKey: ['filing-detail', params.source, params.sourceId],
     queryFn: () => getFilingDetail(params.source ?? '', params.sourceId ?? ''),
-    enabled: Boolean(params.source && params.sourceId),
+    enabled: hasParams,
   })
 
   const filing = detailQuery.data?.filing
+  const error = detailQuery.error
+  const isNotFound = error instanceof ApiError && error.isNotFound
 
   return (
     <div className="space-y-6 pb-10">
@@ -37,15 +41,21 @@ export function FilingDetailPage() {
           </div>
           <CardTitle>公告详情与落盘信息</CardTitle>
           <CardDescription>
-            这里对接 `/api/filings/{'{source}'}/{'{source_id}'}`，后续可继续扩展成附件预览、变更 diff 或订阅入口。
+            对接 <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/api/filings/{'{source}'}/{'{source_id}'}</code>，展示公告元数据、本地落盘路径及原文链接。
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
-          {detailQuery.isLoading ? (
+          {!hasParams ? (
+            <MissingParamsState />
+          ) : detailQuery.isLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-12 w-1/2" />
               <Skeleton className="h-32 w-full" />
             </div>
+          ) : isNotFound ? (
+            <NotFoundState source={params.source ?? ''} sourceId={params.sourceId ?? ''} />
+          ) : error ? (
+            <ErrorState message={error.message} />
           ) : filing ? (
             <div className="space-y-6">
               <div className="space-y-3">
@@ -76,7 +86,7 @@ export function FilingDetailPage() {
               </Button>
             </div>
           ) : (
-            <p className="text-sm text-slate-500">未找到对应公告，可能 source/source_id 不存在。</p>
+            <NotFoundState source={params.source ?? ''} sourceId={params.sourceId ?? ''} />
           )}
         </CardContent>
       </Card>
@@ -89,6 +99,46 @@ function InfoBlock({ label, value }: { label: string; value: string }) {
     <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
       <p className="mt-2 break-all text-sm text-slate-700">{value}</p>
+    </div>
+  )
+}
+
+function MissingParamsState() {
+  return (
+    <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/80 px-6 py-10 text-center">
+      <FolderSearch className="mx-auto mb-3 h-8 w-8 text-slate-300" />
+      <p className="text-sm font-medium text-slate-600">缺少路径参数</p>
+      <p className="mt-1 text-sm text-slate-400">请通过列表页的"详情"按钮进入公告详情。</p>
+      <Button asChild variant="ghost" className="mt-4">
+        <Link to="/">返回首页</Link>
+      </Button>
+    </div>
+  )
+}
+
+function NotFoundState({ source, sourceId }: { source: string; sourceId: string }) {
+  return (
+    <div className="rounded-3xl border border-red-200 bg-red-50 px-6 py-10 text-center">
+      <AlertCircle className="mx-auto mb-3 h-8 w-8 text-red-400" />
+      <p className="text-sm font-medium text-red-800">公告不存在</p>
+      <p className="mt-1 text-sm text-red-600">
+        未找到 <code className="rounded bg-red-100 px-1.5 py-0.5 text-xs">{source}/{sourceId}</code> 对应的公告记录。
+      </p>
+      <p className="mt-2 text-xs text-red-400">该公告可能尚未被采集，或 source/source_id 不正确。</p>
+      <Button asChild variant="ghost" className="mt-4">
+        <Link to="/">返回首页</Link>
+      </Button>
+    </div>
+  )
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <div className="rounded-3xl border border-amber-200 bg-amber-50 px-6 py-10 text-center">
+      <AlertCircle className="mx-auto mb-3 h-8 w-8 text-amber-500" />
+      <p className="text-sm font-medium text-amber-800">加载失败</p>
+      <p className="mt-1 text-sm text-amber-600">{message || '网络请求异常，请稍后重试。'}</p>
+      <p className="mt-2 text-xs text-amber-400">请检查后端服务是否正常运行，或刷新页面重试。</p>
     </div>
   )
 }

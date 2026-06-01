@@ -187,8 +187,11 @@ Every data view handles these states:
 | **Empty (filtered)** | Latest updates table (with filters active) | Dashed border box: "没有符合过滤条件的更新记录。" |
 | **Empty (no search yet)** | Code search results | Dashed border box: "输入代码后即可查看该标的的相关更新。" |
 | **Empty (no results)** | Code search results | Dashed border box: "该代码当前没有查到匹配记录…" |
-| **Empty (not found)** | Filing detail | "未找到对应公告，可能 source/source_id 不存在。" |
-| **Error** | All queries | React Query default: silently retries once, then stops rendering (no error boundary yet — future enhancement) |
+| **Validation error** | Code search input | Red inline message below input (empty or invalid format) |
+| **Query error** | Code search results | Red card: "查询失败" with error message and retry hint |
+| **Not found (404)** | Filing detail | Red card: "公告不存在" with source/sourceId shown |
+| **API error** | Filing detail | Amber card: "加载失败" with error message and retry hint |
+| **Missing params** | Filing detail (no source/sourceId) | Dashed border box: "缺少路径参数" with link to home |
 | **404 route** | Unknown paths | `NotFoundPage` with "页面不存在" message and link back to home |
 
 ## Acceptance Checklist
@@ -205,15 +208,18 @@ Every data view handles these states:
 - [x] Source filter values match backend: `sse`, `cninfo`, `hkex`
 - [x] Filing list sorted by `published_at` descending (frontend defensive sort)
 - [x] All components use consistent import style (`@/` aliases)
-- [x] Loading / empty / not-found states handled for all views
+- [x] Loading / empty / error / not-found / validation states handled for all views
+- [x] Code search validates input (empty + format) before submitting
+- [x] API errors surfaced as visible UI (red/amber cards) instead of silent failures
+- [x] `ApiError` class distinguishes 404 from other HTTP errors
+- [x] Filing detail handles missing params, 404, and network errors separately
 - [x] `VITE_API_BASE_URL` env var documented and functional
 - [x] Build output in `frontend/dist/` (<400 KB JS gzipped)
 
 ## Known Limitations & Future Work
 
-- **No error boundary** — React Query silently retries; no visible error UI for network failures yet
+- **No global error boundary** — individual views handle errors, but no React error boundary catches render crashes
 - **No global loading indicator** — each panel has its own skeleton state
 - **Client-side pagination only** — pagination controls are wired but rely on server-side `offset/limit`
 - **No unit tests** — frontend has no test framework configured yet
-- **Favicon** — `index.html` references `/favicon.svg` but file may not exist in `public/`
 - **Accessibility** — no explicit ARIA labels on filter pills; keyboard navigation works via native `<button>`
