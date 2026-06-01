@@ -1,6 +1,6 @@
 export const SOURCE_OPTIONS = [
   { value: 'sse', label: '上交所' },
-  { value: 'szse', label: '深交所' },
+  { value: 'cninfo', label: '深交所' },
   { value: 'hkex', label: '港交所' },
 ] as const
 
