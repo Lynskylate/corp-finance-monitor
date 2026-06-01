@@ -17,7 +17,9 @@ export async function listFilings(params: {
   if (params.kind) search.set('kind', params.kind)
   if (params.since) search.set('since', params.since)
 
-  const data = await fetchJson<FilingListResponse>(`/api/filings?${search.toString()}`)
+  const query = search.toString()
+  const path = query ? `/filings?${query}` : '/filings'
+  const data = await fetchJson<FilingListResponse>(path)
   return {
     ...data,
     items: sortFilingsByNewest(data.items),
@@ -25,7 +27,7 @@ export async function listFilings(params: {
 }
 
 export function getFilingDetail(source: string, sourceId: string) {
-  return fetchJson<FilingDetailResponse>(`/api/filings/${source}/${sourceId}`)
+  return fetchJson<FilingDetailResponse>(`/filings/${source}/${sourceId}`)
 }
 
 function sortFilingsByNewest(items: FilingItem[]) {

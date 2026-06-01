@@ -53,6 +53,24 @@ class TestPhase2DeliverablesPresent(unittest.TestCase):
         self.assertEqual(missing, [], f"missing Phase 2 files: {missing}")
 
 
+class TestPhase3DeliverablesPresent(unittest.TestCase):
+    """Phase 3 must add docker + tailscale deployment artifacts."""
+
+    REQUIRED = [
+        "Dockerfile",
+        "docker-compose.yml",
+        "frontend/Dockerfile",
+        "frontend/nginx.conf",
+        "docs/TAILSCALE_SERVE.md",
+        "scripts/setup_tailscale_serve.sh",
+        "scripts/verify_tailscale_serve.sh",
+    ]
+
+    def test_all_phase3_files_present(self):
+        missing = [p for p in self.REQUIRED if not (REPO_ROOT / p).exists()]
+        self.assertEqual(missing, [], f"missing Phase 3 files: {missing}")
+
+
 class TestVerifyDeployScript(unittest.TestCase):
     """scripts/verify_deploy.sh must be syntactically valid and executable."""
 
@@ -141,6 +159,48 @@ class TestDeployScript(unittest.TestCase):
         self.assertIn("cfm", text, "deploy.sh should install/run cfm binary")
 
 
+class TestPhase3Scripts(unittest.TestCase):
+    """tailscale helper scripts must be executable, valid bash, and explicit."""
+
+    SETUP = SCRIPTS / "setup_tailscale_serve.sh"
+    VERIFY = SCRIPTS / "verify_tailscale_serve.sh"
+
+    def setUp(self):
+        for p in (self.SETUP, self.VERIFY):
+            if not p.exists():
+                self.skipTest(f"{p} not present")
+
+    def test_executable_bits(self):
+        for script in (self.SETUP, self.VERIFY):
+            mode = script.stat().st_mode
+            self.assertTrue(mode & stat.S_IXUSR, f"{script.name} must be executable")
+
+    def test_bash_syntax(self):
+        import subprocess
+
+        for script in (self.SETUP, self.VERIFY):
+            result = subprocess.run(
+                ["bash", "-n", str(script)],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, f"{script.name}: {result.stderr}")
+
+    def test_setup_script_uses_tailscale_serve(self):
+        text = self.SETUP.read_text()
+        self.assertIn("tailscale", text)
+        self.assertIn("serve --yes --bg", text)
+        self.assertIn("127.0.0.1", text)
+        self.assertIn("/healthz", text)
+
+    def test_verify_script_checks_tailnet_path(self):
+        text = self.VERIFY.read_text()
+        self.assertIn("tailscale serve status", text)
+        self.assertIn("https://", text)
+        self.assertIn("/api/filings", text)
+        self.assertIn("/healthz", text)
+
+
 class TestSystemdUnits(unittest.TestCase):
     """systemd .in templates must use cfm and have correct service types."""
 
@@ -171,6 +231,38 @@ class TestSystemdUnits(unittest.TestCase):
         text = self.TIMER.read_text()
         self.assertIn("OnCalendar=", text)
         self.assertIn("Persistent=true", text)
+
+
+class TestDockerComposeArtifacts(unittest.TestCase):
+    """Docker deployment must expose only the frontend on localhost:8080."""
+
+    COMPOSE = REPO_ROOT / "docker-compose.yml"
+    NGINX = REPO_ROOT / "frontend" / "nginx.conf"
+
+    def setUp(self):
+        for p in (self.COMPOSE, self.NGINX):
+            if not p.exists():
+                self.skipTest(f"{p} not present")
+
+    def test_frontend_published_on_localhost_only(self):
+        import yaml
+
+        data = yaml.safe_load(self.COMPOSE.read_text())
+        ports = data["services"]["frontend"]["ports"]
+        self.assertIn("127.0.0.1:8080:80", ports)
+
+    def test_backend_not_directly_published(self):
+        import yaml
+
+        data = yaml.safe_load(self.COMPOSE.read_text())
+        self.assertNotIn("ports", data["services"]["backend"])
+
+    def test_nginx_proxies_api_and_healthz(self):
+        text = self.NGINX.read_text()
+        self.assertIn("location /api/", text)
+        self.assertIn("proxy_pass http://backend:8080/api/", text)
+        self.assertIn("location /healthz", text)
+        self.assertIn("proxy_pass http://backend:8080/healthz", text)
 
 
 class TestVariablesDoc(unittest.TestCase):
@@ -218,6 +310,15 @@ class TestDocsCrossReference(unittest.TestCase):
     def test_verification_doc_references_verify_script(self):
         text = (DOCS / "DEPLOY_VERIFICATION.md").read_text()
         self.assertIn("scripts/verify_deploy.sh", text)
+
+    def test_tailscale_doc_references_helper_scripts(self):
+        text = (DOCS / "TAILSCALE_SERVE.md").read_text()
+        self.assertIn("scripts/setup_tailscale_serve.sh", text)
+        self.assertIn("scripts/verify_tailscale_serve.sh", text)
+
+    def test_readme_references_tailscale_doc(self):
+        text = (REPO_ROOT / "README.md").read_text()
+        self.assertIn("docs/TAILSCALE_SERVE.md", text)
 
 
 class TestConfigExample(unittest.TestCase):

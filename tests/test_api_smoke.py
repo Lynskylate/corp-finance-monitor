@@ -1,7 +1,7 @@
 """
 HTTP API smoke tests for corp-finance-monitor.
 
-We start the real `ThreadingHTTPServer` in a background thread against
+We start a uvicorn server (backed by FastAPI) in a background thread against
 an empty config (no real sources). Then we exercise every endpoint:
 
 - GET  /healthz
@@ -28,6 +28,8 @@ import time
 import unittest
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
+
+import uvicorn
 
 from tests.conftest import SRC  # noqa: F401
 from corp_finance_monitor.core import Config
@@ -95,6 +97,7 @@ class _ServerBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.mkdtemp(prefix="cfm_api_test_")
+        port = _free_port()
         cfg = Config(
             engine=EngineConfig(run_once=True, interval_minutes=360, fetch_delay_seconds=0),
             storage=StorageConfig(backend="disk", base_dir=os.path.join(cls.tmp, "data")),
@@ -102,29 +105,35 @@ class _ServerBase(unittest.TestCase):
                 backend="sqlite",
                 path=os.path.join(cls.tmp, "data", ".cfm_state", "state.db"),
             ),
-            api=APIConfig(host="127.0.0.1", port=_free_port(), enabled=True),
+            api=APIConfig(host="127.0.0.1", port=port, enabled=True),
             sources={
                 "fake": SourceConfig(name="fake", watchlist=[{"stock": "000725"}]),
             },
         )
-        cls.server = create_app(cfg, {"fake": _FakeSource})
-        cls.port = cfg.api.port
-        cls.base = f"http://127.0.0.1:{cls.port}"
-        cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.app = create_app(cfg, {"fake": _FakeSource})
+        cls.port = port
+        cls.base = f"http://127.0.0.1:{port}"
+
+        config = uvicorn.Config(
+            app=cls.app,
+            host="127.0.0.1",
+            port=port,
+            log_level="warning",
+        )
+        cls._uvicorn_server = uvicorn.Server(config)
+        cls.thread = threading.Thread(target=cls._uvicorn_server.run, daemon=True)
         cls.thread.start()
-        # Wait for the server to actually accept connections
         cls._wait_ready(cls.base)
 
     @classmethod
     def tearDownClass(cls):
-        cls.server.shutdown()
-        cls.server.server_close()
-        cls.thread.join(timeout=3)
-        if hasattr(cls.server, "engine"):
-            try:
-                cls.server.engine.close()  # type: ignore[attr-defined]
-            except Exception:
-                pass
+        cls._uvicorn_server.should_exit = True
+        cls.thread.join(timeout=5)
+        engine = cls.app.state.engine
+        try:
+            engine.close()
+        except Exception:
+            pass
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     @staticmethod
@@ -140,6 +149,10 @@ class _ServerBase(unittest.TestCase):
                 time.sleep(0.05)
         raise RuntimeError(f"server not ready: {last_err}")
 
+    @property
+    def engine(self):
+        return self.app.state.engine
+
 
 class TestHealthAndNotFound(_ServerBase):
     def test_healthz(self):
@@ -150,12 +163,11 @@ class TestHealthAndNotFound(_ServerBase):
     def test_unknown_route_404(self):
         status, body = _http_get(self.base + "/api/unknown")
         self.assertEqual(status, 404)
-        self.assertEqual(body.get("error"), "not_found")
 
     def test_filing_detail_404(self):
         status, body = _http_get(self.base + "/api/filings/fake/does-not-exist")
         self.assertEqual(status, 404)
-        self.assertEqual(body.get("error"), "filing_not_found")
+        self.assertEqual(body.get("detail"), "filing_not_found")
 
 
 class TestFilingsEndpoint(_ServerBase):
@@ -169,7 +181,6 @@ class TestFilingsEndpoint(_ServerBase):
 
     def test_filings_after_manual_store(self):
         # Insert a record directly via the engine's storage, then list it.
-        engine = self.server.engine  # type: ignore[attr-defined]
         ref = FilingRef(
             source="fake",
             source_id="manual-001",
@@ -181,7 +192,7 @@ class TestFilingsEndpoint(_ServerBase):
             url="",
         )
         filing = Filing(ref=ref, content=b"%PDF-1.4\nbody\n")
-        engine.storage.store(filing)
+        self.engine.storage.store(filing)
 
         status, body = _http_get(self.base + "/api/filings?source=fake&stock_code=000725")
         self.assertEqual(status, 200)
@@ -201,8 +212,7 @@ class TestFilingsEndpoint(_ServerBase):
             published_at="2025-08-25",
             url="",
         )
-        engine = self.server.engine  # type: ignore[attr-defined]
-        engine.storage.store(Filing(ref=ref, content=b"x"))
+        self.engine.storage.store(Filing(ref=ref, content=b"x"))
 
         status, body = _http_get(self.base + "/api/filings/fake/manual-002")
         self.assertEqual(status, 200)
@@ -237,7 +247,7 @@ class TestSubscriptionsEndpoint(_ServerBase):
     def test_subscription_create_requires_name(self):
         status, body = _http_post(self.base + "/api/subscriptions", {"source": "cninfo"})
         self.assertEqual(status, 400)
-        self.assertEqual(body.get("error"), "name_required")
+        self.assertEqual(body.get("detail"), "name_required")
 
     def test_subscription_create_rejects_invalid_json(self):
         data = b"this is not json"
@@ -273,9 +283,8 @@ class TestRunsEndpoint(_ServerBase):
 
     def test_runs_limit(self):
         # Insert several runs via direct call
-        engine = self.server.engine  # type: ignore[attr-defined]
         for i in range(5):
-            engine.state_store.record_run(
+            self.engine.state_store.record_run(
                 f"2025-06-0{i + 1}T00:00:00",
                 f"2025-06-0{i + 1}T00:01:00",
                 discovered=1, fetched=1, failed=0,
@@ -326,7 +335,7 @@ class TestSyncLocking(_ServerBase):
             self.assertEqual(results.get("first", (None,))[0], 200)
             self.assertEqual(results.get("second", (None,))[0], 409)
             self.assertEqual(
-                results["second"][1].get("error"),
+                results["second"][1].get("detail"),
                 "sync_already_running",
             )
         finally:
@@ -335,8 +344,7 @@ class TestSyncLocking(_ServerBase):
 
 class TestSyncEndToEnd(_ServerBase):
     def test_sync_invokes_fake_source_and_persists(self):
-        engine = self.server.engine  # type: ignore[attr-defined]
-        before = engine.storage.list_refs(source="fake")
+        before = self.engine.storage.list_refs(source="fake")
         before_ids = {r.source_id for r in before}
 
         status, body = _http_post(self.base + "/api/sync", {"sources": ["fake"]})
@@ -346,7 +354,7 @@ class TestSyncEndToEnd(_ServerBase):
         self.assertEqual(stats.get("fetched"), 1)
         self.assertEqual(stats.get("failed"), 0)
 
-        after = engine.storage.list_refs(source="fake")
+        after = self.engine.storage.list_refs(source="fake")
         after_ids = {r.source_id for r in after}
         self.assertIn("fake-001", after_ids)
         self.assertNotIn("fake-001", before_ids)

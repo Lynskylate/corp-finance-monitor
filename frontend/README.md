@@ -45,22 +45,24 @@ npm run check
 
 | Variable | Default | Description |
 |---|---|---|
-| `VITE_API_BASE_URL` | `""` (same origin) | Backend API base URL. Set only when the API runs on a different host/port (e.g. `http://localhost:8080`). |
+| `VITE_API_BASE_URL` | `/api` | Backend API base URL prefix. Use `/api` behind nginx reverse proxy, or set a full origin such as `http://localhost:8080/api` when the API is on a different host/port. |
 
 Usage:
 
 ```bash
-# API on same origin (default, e.g. behind a reverse proxy)
+# API behind nginx reverse proxy (recommended for production)
 npm run dev
 
-# API on a different port
-VITE_API_BASE_URL=http://localhost:8080 npm run dev
+# API on a different host/port
+VITE_API_BASE_URL=http://localhost:8080/api npm run dev
 ```
+
+With the default `.env`, Vite dev server proxies `/api` to `http://127.0.0.1:8080`, so local `npm run dev` continues to work without changing frontend code.
 
 The variable is consumed in `src/lib/api-client.ts`:
 
 ```ts
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
+const API_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL)
 ```
 
 ## Build Artifact

@@ -137,6 +137,24 @@ curl -X POST http://127.0.0.1:8080/api/sync \
   -d '{"sources":["cninfo"]}'
 ```
 
+## Docker + Tailscale
+
+Phase 3 adds a containerized frontend/backend path:
+
+```text
+Browser -> :443 (tailscale serve) -> 127.0.0.1:8080 -> nginx -> /api -> backend:8080
+```
+
+Quick start:
+
+```bash
+docker compose up -d --build
+./scripts/setup_tailscale_serve.sh
+./scripts/verify_tailscale_serve.sh
+```
+
+The detailed runbook lives in `docs/TAILSCALE_SERVE.md`.
+
 ## Verified
 
 Validated on June 1, 2026:
@@ -150,6 +168,7 @@ Validated on June 1, 2026:
   - `/api/filings`
   - `/api/runs`
   - `POST /api/subscriptions`
+- Docker + Tailscale deployment path documented under `docs/TAILSCALE_SERVE.md`
 
 Example verified CNInfo classifications:
 

@@ -1,0 +1,12 @@
+.git
+__pycache__
+*.pyc
+.pytest_cache
+*.egg-info
+data/
+frontend/node_modules/
+frontend/dist/
+*.md
+tests/
+deploy/
+.venv/
