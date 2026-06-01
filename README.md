@@ -158,6 +158,23 @@ Example verified CNInfo classifications:
 - `2025年半年度报告` -> `semi`
 - `2025年半年度报告摘要` -> `semi`
 
+## CI (GitHub Actions)
+
+Automated on every push and pull request to `main`/`master`:
+
+**File:** `.github/workflows/ci.yml`
+
+**Test job** — runs on Python 3.10, 3.11, 3.12:
+```bash
+PYTHONPATH=src python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+**Build job** — runs after tests pass:
+- Builds `wheel` and `sdist` via `python -m build`
+- Uploads `dist/` as workflow artifact named `dist` (30-day retention)
+
+**No repo secrets required** — the workflow uses only public actions (`actions/checkout`, `actions/setup-python`, `actions/upload-artifact`) and no external credentials.
+
 ## Next steps
 
 - add pagination/filter extensions to the HTTP API
