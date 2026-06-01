@@ -155,6 +155,39 @@ docker compose up -d --build
 
 The detailed runbook lives in `docs/TAILSCALE_SERVE.md`.
 
+## Release Contract
+
+项目仓现在只负责两件事：
+
+- 维护应用代码和 Dockerfile
+- 通过 `.github/workflows/docker.yml` 构建镜像并向 release config repo 提交 digest 更新 PR
+
+最小发布契约放在 `ops/services/*.yaml`：
+
+- `corp-finance-monitor-backend.yaml`
+- `corp-finance-monitor-frontend.yaml`
+
+每个契约只声明：
+
+- `service_name`
+- `dockerfile`
+- `internal_port`
+- `healthcheck_path`
+- `exposure`
+- `env_profile`
+
+运行时 secrets、宿主机端口映射、rootless Podman 编排、Tailscale/Envoy 暴露都移到独立 release config repo 处理。
+
+## Legacy Deploy Artifacts
+
+旧的 `deploy/` 目录和基于 systemd/ansible 的项目内发布脚本已经移除。
+
+新链路是：
+
+```text
+project repo -> build images -> release config PR -> controlled runner deploy
+```
+
 ## Verified
 
 Validated on June 1, 2026:

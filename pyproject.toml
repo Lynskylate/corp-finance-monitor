@@ -1,7 +1,7 @@
 [project]
 name = "corp-finance-monitor"
 version = "0.1.0"
-description = "企业财报发现与更新系统 — Corporate Financial Report Discovery & Update Engine"
+description = "Corporate financial report discovery and update engine"
 requires-python = ">=3.10"
 dependencies = [
     "requests>=2.28",
