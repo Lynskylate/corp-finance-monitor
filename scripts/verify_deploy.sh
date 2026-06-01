@@ -10,11 +10,11 @@
 #
 # Usage:
 #   ./scripts/verify_deploy.sh
-#   BASE_URL=http://host:8080 ./scripts/verify_deploy.sh
+#   BASE_URL=http://host:8190 ./scripts/verify_deploy.sh
 #
 set -uo pipefail
 
-BASE_URL="${BASE_URL:-http://127.0.0.1:8080}"
+BASE_URL="${BASE_URL:-http://127.0.0.1:8190}"
 REPO_PATH="${REPO_PATH:-/home/lynskylate/corp-finance-monitor}"
 CFM_BIN="${CFM_BIN:-${REPO_PATH}/.venv/bin/cfm}"
 CONFIG_PATH="${CONFIG_PATH:-${REPO_PATH}/config.yaml}"

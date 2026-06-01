@@ -4,16 +4,16 @@
 #
 # Expected topology:
 #   Browser -> https://<hostname>.<tailnet>.ts.net -> tailscale serve
-#           -> http://127.0.0.1:8080 -> nginx -> /api/* -> backend:8080
+#           -> http://127.0.0.1:8190 -> nginx -> /api/* -> backend:8190
 #
 # Usage:
 #   ./scripts/setup_tailscale_serve.sh
-#   LOCAL_PORT=8080 ./scripts/setup_tailscale_serve.sh
+#   LOCAL_PORT=8190 ./scripts/setup_tailscale_serve.sh
 #
 set -euo pipefail
 
 TAILSCALE_BIN="${TAILSCALE_BIN:-tailscale}"
-LOCAL_PORT="${LOCAL_PORT:-8080}"
+LOCAL_PORT="${LOCAL_PORT:-8190}"
 LOCAL_URL="${LOCAL_URL:-http://127.0.0.1:${LOCAL_PORT}}"
 
 command -v "${TAILSCALE_BIN}" >/dev/null 2>&1 || {

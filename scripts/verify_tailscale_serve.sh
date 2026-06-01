@@ -9,7 +9,7 @@
 set -uo pipefail
 
 TAILSCALE_BIN="${TAILSCALE_BIN:-tailscale}"
-LOCAL_PORT="${LOCAL_PORT:-8080}"
+LOCAL_PORT="${LOCAL_PORT:-8190}"
 LOCAL_URL="${LOCAL_URL:-http://127.0.0.1:${LOCAL_PORT}}"
 
 command -v "${TAILSCALE_BIN}" >/dev/null 2>&1 || {
