@@ -92,10 +92,11 @@ jobs:
           EOF
 
       - name: Save release image archive
-        run: >
-          docker save
-          -o "${{ runner.temp }}/${{ matrix.service_name }}.tar"
-          "${{ matrix.image_repository }}:${{ github.sha }}"
+        run: |
+          docker pull "${{ matrix.image_repository }}:${{ github.sha }}"
+          docker save \
+            -o "${{ runner.temp }}/${{ matrix.service_name }}.tar" \
+            "${{ matrix.image_repository }}:${{ github.sha }}"
 
       - name: Upload release metadata
         uses: actions/upload-artifact@v4
