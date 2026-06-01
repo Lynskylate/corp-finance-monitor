@@ -58,13 +58,19 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
           push: true
+          provenance: false
+          sbom: false
           tags: |
             ${{ matrix.image_repository }}:${{ github.sha }}
             ${{ matrix.image_repository }}:latest
           build-args: ${{ matrix.build_args }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Verify pushed digest
+        run: docker buildx imagetools inspect "${{ matrix.image_repository }}@${{ steps.build.outputs.digest }}"
 
       - name: Write release metadata
         run: |
