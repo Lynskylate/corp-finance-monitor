@@ -61,7 +61,9 @@ class TestReleaseWorkflow(unittest.TestCase):
 
     def test_uploads_release_metadata(self):
         self.assertIn("release-metadata-", self.text)
+        self.assertIn("release-image-", self.text)
         self.assertIn("steps.build.outputs.digest", self.text)
+        self.assertIn("source_run_id", self.text)
 
     def test_auto_merges_release_pr(self):
         self.assertIn("Auto-merge release PR", self.text)
@@ -112,6 +114,63 @@ class TestReleaseWorkflow(unittest.TestCase):
                         }
                     },
                 )
+
+    def test_release_repo_updates_artifact_source_metadata(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            stack_path = root / "environments/prod/stacks/corp-finance-monitor.yaml"
+            stack_path.parent.mkdir(parents=True, exist_ok=True)
+            stack_path.write_text(
+                yaml.safe_dump(
+                    {
+                        "apiVersion": "deploy.lynskylate/v1alpha1",
+                        "kind": "DeploymentStack",
+                        "service_name": "corp-finance-monitor",
+                        "target_group": "gtr-core",
+                        "runtime": {"type": "rootless-podman", "network": {"name": "cfm"}},
+                        "service_user": "svc-corp-finance-monitor",
+                        "exposure": "tailscale",
+                        "healthcheck": {"url": "http://127.0.0.1:8190/healthz"},
+                        "containers": [
+                            {
+                                "service_ref": "corp-finance-monitor-backend",
+                                "container_name": "corp-finance-monitor-backend",
+                                "image_repository": "ghcr.io/lynskylate/corp-finance-monitor-backend",
+                                "image_digest": "sha256:old",
+                                "env_profile": "corp-finance-monitor-backend",
+                                "container_port": 8190,
+                            }
+                        ],
+                        "rollback_history": [],
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            update_release_repo.update_stacks(
+                root,
+                "prod",
+                {
+                    "corp-finance-monitor-backend": {
+                        "service_name": "corp-finance-monitor-backend",
+                        "image_repository": "ghcr.io/lynskylate/corp-finance-monitor-backend",
+                        "image_digest": "sha256:new",
+                        "image_tag": "commit-sha",
+                        "image_artifact": "release-image-corp-finance-monitor-backend",
+                        "source_repository": "Lynskylate/corp-finance-monitor",
+                        "source_run_id": 26771237800,
+                    }
+                },
+            )
+
+            stack = yaml.safe_load(stack_path.read_text(encoding="utf-8"))
+            self.assertEqual(stack["artifact_source_repository"], "Lynskylate/corp-finance-monitor")
+            self.assertEqual(stack["artifact_source_run_id"], 26771237800)
+            self.assertEqual(
+                stack["containers"][0]["image_artifact"],
+                "release-image-corp-finance-monitor-backend",
+            )
 
 
 class TestLegacyDeployRemoved(unittest.TestCase):

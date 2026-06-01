@@ -42,6 +42,16 @@ def record_previous_release(stack: dict[str, Any]) -> list[dict[str, Any]]:
 def update_stacks(release_repo: Path, environment: str, metadata: dict[str, dict[str, Any]]) -> list[Path]:
     changed_paths: list[Path] = []
     matched_services: set[str] = set()
+    artifact_sources = {
+        (payload.get("source_repository"), str(payload.get("source_run_id")))
+        for payload in metadata.values()
+        if payload.get("source_repository") and payload.get("source_run_id")
+    }
+    if len(artifact_sources) > 1:
+        raise ValueError("metadata references multiple source workflow runs")
+    artifact_source_repository, artifact_source_run_id = (None, None)
+    if artifact_sources:
+        artifact_source_repository, artifact_source_run_id = artifact_sources.pop()
     stack_dir = release_repo / "environments" / environment / "stacks"
     for path in sorted(stack_dir.glob("*.yaml")):
         stack = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -60,12 +70,25 @@ def update_stacks(release_repo: Path, environment: str, metadata: dict[str, dict
                 container.get("image_repository") != payload["image_repository"]
                 or container.get("image_digest") != payload["image_digest"]
                 or container.get("image_tag") != payload.get("image_tag")
+                or container.get("image_artifact") != payload.get("image_artifact")
             ):
                 changed = True
                 container["image_repository"] = payload["image_repository"]
                 container["image_digest"] = payload["image_digest"]
                 if payload.get("image_tag"):
                     container["image_tag"] = payload["image_tag"]
+                if payload.get("image_artifact"):
+                    container["image_artifact"] = payload["image_artifact"]
+        if (
+            artifact_source_repository
+            and (
+                stack.get("artifact_source_repository") != artifact_source_repository
+                or str(stack.get("artifact_source_run_id")) != artifact_source_run_id
+            )
+        ):
+            changed = True
+            stack["artifact_source_repository"] = artifact_source_repository
+            stack["artifact_source_run_id"] = int(artifact_source_run_id)
         if changed:
             stack["rollback_history"] = record_previous_release(previous_release) + previous_history
             stack["updated_at"] = datetime.now(timezone.utc).isoformat()

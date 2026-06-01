@@ -80,6 +80,9 @@ jobs:
             "image_repository": "${{ matrix.image_repository }}",
             "image_digest": "${{ steps.build.outputs.digest }}",
             "image_tag": "${{ github.sha }}",
+            "source_repository": "${{ github.repository }}",
+            "source_run_id": "${{ github.run_id }}",
+            "image_artifact": "release-image-${{ matrix.service_name }}",
             "dockerfile": "${{ matrix.dockerfile }}",
             "internal_port": ${{ matrix.internal_port }},
             "healthcheck_path": "${{ matrix.healthcheck_path }}",
@@ -88,11 +91,24 @@ jobs:
           }
           EOF
 
+      - name: Save release image archive
+        run: >
+          docker save
+          -o "${{ runner.temp }}/${{ matrix.service_name }}.tar"
+          "${{ matrix.image_repository }}:${{ github.sha }}"
+
       - name: Upload release metadata
         uses: actions/upload-artifact@v4
         with:
           name: release-metadata-${{ matrix.service_name }}
           path: ${{ runner.temp }}/${{ matrix.service_name }}.json
+
+      - name: Upload release image archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-image-${{ matrix.service_name }}
+          path: ${{ runner.temp }}/${{ matrix.service_name }}.tar
+          retention-days: 7
 
   open-release-pr:
     if: github.ref_name == 'main' || github.ref_name == 'master'
