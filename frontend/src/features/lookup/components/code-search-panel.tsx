@@ -16,6 +16,7 @@ type CodeSearchPanelProps = {
   items: FilingItem[]
   isLoading: boolean
   error: Error | null
+  hasSearched: boolean
 }
 
 const CODE_PATTERN = /^[0-9A-Za-z]{1,10}$/
@@ -27,9 +28,9 @@ export function CodeSearchPanel({
   items,
   isLoading,
   error,
+  hasSearched,
 }: CodeSearchPanelProps) {
   const [validationError, setValidationError] = useState<string | null>(null)
-  const hasSearched = items.length > 0 || error !== null
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

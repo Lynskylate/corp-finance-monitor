@@ -125,6 +125,7 @@ export function HomePage() {
         items={stockQuery.data?.items ?? []}
         isLoading={stockQuery.isLoading}
         error={stockQuery.error ?? null}
+        hasSearched={activeStockCode.length > 0}
       />
     </div>
   )
