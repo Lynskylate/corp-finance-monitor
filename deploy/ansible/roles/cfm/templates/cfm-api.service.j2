@@ -1,0 +1,18 @@
+[Unit]
+Description=CFM API Service
+After=network.target
+
+[Service]
+Type=simple
+User={{ cfm_user }}
+Group={{ cfm_group }}
+WorkingDirectory={{ repo_path }}
+ExecStart={{ venv_path }}/bin/cfm serve -c {{ config_path }} --host {{ listen_host }} --port {{ listen_port }}
+Restart=always
+RestartSec=5
+StandardOutput=append:{{ log_dir }}/api.log
+StandardError=append:{{ log_dir }}/api-error.log
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

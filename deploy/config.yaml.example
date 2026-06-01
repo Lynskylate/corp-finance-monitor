@@ -1,0 +1,33 @@
+# corp-finance-monitor 配置示例
+# 复制为 config.yaml 并按需修改
+
+engine:
+  run_once: true
+  interval_minutes: 360
+  fetch_delay_seconds: 0.5
+
+storage:
+  backend: disk
+  base_dir: ./data
+
+state_store:
+  backend: sqlite
+  path: ./data/.cfm_state/state.db
+
+api:
+  enabled: true
+  host: 127.0.0.1
+  port: 8080
+
+sources:
+  cninfo:
+    watchlist:
+      - stock: "000725"
+        org_id: "gssz0000725"
+        kinds: [annual, semi, q1, q3]
+  sse:
+    watchlist: []
+  hkex:
+    watchlist:
+      - stock: "00700"
+        kinds: [annual, interim]

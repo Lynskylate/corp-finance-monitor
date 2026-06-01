@@ -1,0 +1,93 @@
+---
+# corp-finance-monitor deployment tasks
+
+- name: Create cfm system user
+  user:
+    name: "{{ cfm_user }}"
+    group: "{{ cfm_group }}"
+    system: yes
+    create_home: no
+    shell: /usr/sbin/nologin
+    state: present
+  when: cfm_user != 'root'
+
+- name: Create directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ cfm_user }}"
+    group: "{{ cfm_group }}"
+    mode: "0755"
+  loop:
+    - "{{ data_dir }}"
+    - "{{ data_dir }}/.cfm_state"
+    - "{{ data_dir }}/filings"
+    - "{{ log_dir }}"
+
+- name: Install system packages (pip)
+  apt:
+    name: python3-pip
+    state: present
+  when: install_method == 'pip'
+
+- name: Install system packages (uv)
+  apt:
+    name: curl
+    state: present
+  when: install_method == 'uv'
+
+- name: Install uv
+  shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+  args:
+    creates: /usr/local/bin/uv
+  when: install_method == 'uv'
+
+- name: Install project via pip (local .whl)
+  pip:
+    name: "{{ dist_path }}/corp_finance_monitor-*.whl"
+    state: present
+    extra_args: --find-links {{ dist_path }}
+  when: install_method == 'pip'
+
+- name: Install project via uv (local .whl)
+  shell: |
+    uv pip install --system "{{ dist_path }}/corp_finance_monitor-*.whl"
+  args:
+    chdir: "{{ repo_path }}"
+  when: install_method == 'uv'
+
+- name: Install systemd units
+  template:
+    src: "{{ item.src }}"
+    dest: "/etc/systemd/system/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - src: cfm-api.service.j2
+      dest: "{{ service_name }}.service"
+    - src: cfm-sync.service.j2
+      dest: "{{ sync_service_name }}.service"
+    - src: cfm-sync.timer.j2
+      dest: "{{ timer_name }}.timer"
+  notify: reload systemd
+
+- name: Enable and start API service
+  systemd:
+    name: "{{ service_name }}"
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Enable and start sync timer
+  systemd:
+    name: "{{ timer_name }}"
+    enabled: yes
+    state: started
+
+- name: Verify API service is running
+  wait_for:
+    host: "{{ listen_host }}"
+    port: "{{ listen_port }}"
+    timeout: 15
+  when: ansible_check_mode == false

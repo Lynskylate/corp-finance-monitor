@@ -1,0 +1,13 @@
+[Unit]
+Description=CFM Sync Task (oneshot)
+After=network.target
+
+[Service]
+Type=oneshot
+User={{ cfm_user }}
+Group={{ cfm_group }}
+WorkingDirectory={{ repo_path }}
+ExecStart={{ venv_path }}/bin/cfm sync -c {{ config_path }}
+StandardOutput=append:{{ log_dir }}/sync.log
+StandardError=append:{{ log_dir }}/sync-error.log
+Environment=PYTHONUNBUFFERED=1
