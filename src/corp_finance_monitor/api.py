@@ -49,15 +49,29 @@ def create_app(config: Config, source_registry: Dict[str, type]) -> ThreadingHTT
         def _handle_filings(self, parsed):
             qs = parse_qs(parsed.query)
             kind = qs.get("kind", [None])[0]
+            try:
+                limit = int(qs.get("limit", ["50"])[0])
+                offset = int(qs.get("offset", ["0"])[0])
+            except ValueError:
+                return self._json(HTTPStatus.BAD_REQUEST, {"error": "limit_offset_must_be_int"})
+            if limit < 0 or offset < 0:
+                return self._json(HTTPStatus.BAD_REQUEST, {"error": "limit_offset_must_be_non_negative"})
             refs = engine.storage.list_refs(
                 source=qs.get("source", [None])[0],
                 stock_code=qs.get("stock_code", [None])[0],
                 kind=FilingKind(kind) if kind else None,
                 since=qs.get("since", [None])[0],
             )
+            total = len(refs)
+            items = refs[offset: offset + limit] if limit else refs[offset:]
             return self._json(
                 HTTPStatus.OK,
-                {"items": [serialize_ref(ref) for ref in refs]},
+                {
+                    "items": [serialize_ref(ref) for ref in items],
+                    "total": total,
+                    "limit": limit,
+                    "offset": offset,
+                },
             )
 
         def _handle_filing_detail(self, path: str):
@@ -135,12 +149,15 @@ def create_app(config: Config, source_registry: Dict[str, type]) -> ThreadingHTT
         def _handle_sync(self):
             payload = self._read_json() or {}
             selected_sources = payload.get("sources") or None
+            since = payload.get("since")
             if selected_sources is not None and not isinstance(selected_sources, list):
                 return self._json(HTTPStatus.BAD_REQUEST, {"error": "sources_must_be_list"})
+            if since is not None and not isinstance(since, str):
+                return self._json(HTTPStatus.BAD_REQUEST, {"error": "since_must_be_string"})
             if not run_lock.acquire(blocking=False):
                 return self._json(HTTPStatus.CONFLICT, {"error": "sync_already_running"})
             try:
-                stats = engine.run_once(selected_sources=selected_sources)
+                stats = engine.run_once(selected_sources=selected_sources, since=since)
             finally:
                 run_lock.release()
             return self._json(HTTPStatus.OK, {"stats": stats})

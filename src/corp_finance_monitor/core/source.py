@@ -27,11 +27,17 @@ class AbstractSource(ABC):
         return self.config.options or {}
 
     @abstractmethod
-    def discover(self, watchlist: Optional[List[dict]] = None) -> List[FilingRef]:
+    def discover(
+        self,
+        watchlist: Optional[List[dict]] = None,
+        since: Optional[str] = None,
+    ) -> List[FilingRef]:
         """
         发现新的财报文件。
 
         watchlist: 监控列表，每项包含 stock, kinds, filters 等。
+        since: 仅发现此日期之后发布的文件 (YYYY-MM-DD)。
+               数据源应尽量在 API 层面过滤以减少传输量。
         返回 FilingRef 列表（不包含文件内容）。
         """
         ...

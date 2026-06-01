@@ -32,7 +32,11 @@ def _detect_kind(title: str) -> FilingKind:
 
 
 class CninfoSource(AbstractSource):
-    def discover(self, watchlist: Optional[List[dict]] = None) -> List[FilingRef]:
+    def discover(
+        self,
+        watchlist: Optional[List[dict]] = None,
+        since: Optional[str] = None,
+    ) -> List[FilingRef]:
         refs = []
         for entry in (watchlist or self.watchlist):
             stock = entry.get("stock", "")
@@ -53,6 +57,13 @@ class CninfoSource(AbstractSource):
             else:
                 column = "sse"
 
+            # Build date range: since~today (API-level filter)
+            from datetime import datetime as dt
+            se_date = ""
+            if since:
+                end_date = dt.utcnow().strftime("%Y-%m-%d")
+                se_date = f"{since}~{end_date}"
+
             page = 1
             while True:
                 data = {
@@ -62,7 +73,7 @@ class CninfoSource(AbstractSource):
                     "tabName": "fulltext",
                     "stock": stock_param,
                     "category": category,
-                    "seDate": "",
+                    "seDate": se_date,
                     "sortName": "",
                     "sortType": "desc",
                     "isHLtitle": "true",
@@ -74,7 +85,7 @@ class CninfoSource(AbstractSource):
                 }
                 resp = http_post(API_URL, data=data, headers=headers)
                 result = resp.json()
-                items = result.get("announcements", [])
+                items = result.get("announcements") or []
 
                 for a in items:
                     ann_id = str(a.get("announcementId", ""))

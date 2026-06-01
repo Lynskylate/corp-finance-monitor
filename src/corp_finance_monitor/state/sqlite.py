@@ -146,6 +146,19 @@ class SQLiteStateStore(AbstractStateStore):
             for row in rows
         ]
 
+    def last_successful_run_start(self) -> Optional[str]:
+        """Return the started_at of the most recent run with no failures."""
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT started_at FROM run_log
+                WHERE failed = 0
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        return row["started_at"] if row else None
+
     def create_subscription(self, subscription: Subscription) -> Subscription:
         with self._lock:
             cur = self._conn.execute(

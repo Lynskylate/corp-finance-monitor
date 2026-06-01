@@ -24,7 +24,11 @@ def _jsonp_clean(text: str) -> dict:
 
 
 class SSESource(AbstractSource):
-    def discover(self, watchlist: Optional[List[dict]] = None) -> List[FilingRef]:
+    def discover(
+        self,
+        watchlist: Optional[List[dict]] = None,
+        since: Optional[str] = None,
+    ) -> List[FilingRef]:
         refs = []
         for entry in (watchlist or self.watchlist):
             keyword = entry.get("keyword", "")
@@ -46,6 +50,10 @@ class SSESource(AbstractSource):
                 "jsonCallBack": cb,
                 "_": str(int(time.time() * 1000)),
             }
+
+            # SSE API supports searchDateBegin for date filtering
+            if since:
+                params["searchDateBegin"] = since
             headers = {"Referer": "https://www.sse.com.cn/listing/renewal/ipo/"}
             resp = http_get(QUERY_URL, headers=headers, params=params)
             data = _jsonp_clean(resp.text)

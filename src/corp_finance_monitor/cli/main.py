@@ -82,7 +82,14 @@ def cmd_sync(args):
     _setup_logging(args.verbose)
     _, engine = _new_engine(args.config)
     try:
-        stats = engine.run_once(selected_sources=args.source or None)
+        # --since modes:
+        #   not provided → None (auto-incremental from last successful run)
+        #   YYYY-MM-DD → explicit date window
+        since = args.since
+        stats = engine.run_once(
+            selected_sources=args.source or None,
+            since=since,
+        )
         print(json.dumps({"stats": stats}, ensure_ascii=False, indent=2))
     finally:
         engine.close()
@@ -242,9 +249,17 @@ def main():
     p_run.add_argument("-c", "--config", default="config.yaml", help="Config path")
     p_run.add_argument("-v", "--verbose", action="store_true")
 
-    p_sync = sub.add_parser("sync", help="执行一轮同步，可选指定source")
+    p_sync = sub.add_parser("sync", help="执行一轮同步，可选指定source和日期窗口")
     p_sync.add_argument("-c", "--config", default="config.yaml", help="Config path")
     p_sync.add_argument("--source", action="append", help="Only sync selected source(s)")
+    p_sync.add_argument(
+        "--since",
+        help=(
+            "Incremental sync: only discover filings published after this date. "
+            "Format: YYYY-MM-DD. If omitted, auto-detects from last successful run. "
+            "Use 'full' for a full sync ignoring date filters."
+        ),
+    )
     p_sync.add_argument("-v", "--verbose", action="store_true")
 
     p_list = sub.add_parser("list", help="列出已存储的财报")

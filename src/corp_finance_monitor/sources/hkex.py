@@ -35,7 +35,13 @@ def _fetch_stock_id(stock_code: str) -> int:
 
 
 class HKEXSource(AbstractSource):
-    def discover(self, watchlist: Optional[List[dict]] = None) -> List[FilingRef]:
+    def discover(
+        self,
+        watchlist: Optional[List[dict]] = None,
+        since: Optional[str] = None,
+    ) -> List[FilingRef]:
+        from datetime import datetime as dt
+
         refs = []
         for entry in (watchlist or self.watchlist):
             stock = entry.get("stock", "")
@@ -56,6 +62,12 @@ class HKEXSource(AbstractSource):
                 else:
                     t1 = T1_FINANCIAL
 
+                # Date range: HKEX API requires both fromDate and toDate
+                from_date = "20100101"
+                to_date = dt.utcnow().strftime("%Y%m%d")
+                if since:
+                    from_date = since.replace("-", "")
+
                 params = {
                     "sortDir": "1",
                     "sortByOptions": "DateTime",
@@ -70,6 +82,8 @@ class HKEXSource(AbstractSource):
                     "t2code": t2,
                     "rowRange": "100",
                     "lang": "E",
+                    "fromDate": from_date,
+                    "toDate": to_date,
                 }
 
                 headers = {

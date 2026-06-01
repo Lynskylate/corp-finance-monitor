@@ -36,6 +36,11 @@ class AbstractStateStore(ABC):
         ...
 
     @abstractmethod
+    def last_successful_run_start(self) -> Optional[str]:
+        """Return the started_at timestamp of the last successful run, or None."""
+        ...
+
+    @abstractmethod
     def create_subscription(self, subscription: Subscription) -> Subscription:
         ...
 
