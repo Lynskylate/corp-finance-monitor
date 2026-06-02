@@ -1,8 +1,11 @@
-export const SOURCE_OPTIONS = [
-  { value: 'sse', label: '上交所' },
-  { value: 'cninfo', label: '深交所' },
-  { value: 'hkex', label: '港交所' },
+export const EXCHANGE_OPTIONS = [
+  { value: 'SSE', label: '上交所' },
+  { value: 'SZSE', label: '深交所' },
+  { value: 'HKEX', label: '港交所' },
 ] as const
+
+/** @deprecated Use EXCHANGE_OPTIONS instead */
+export const SOURCE_OPTIONS = EXCHANGE_OPTIONS
 
 export const KIND_OPTIONS = [
   { value: 'annual', label: '年报' },

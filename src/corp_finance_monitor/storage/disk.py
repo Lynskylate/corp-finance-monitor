@@ -181,6 +181,7 @@ class DiskStorage(AbstractStorage):
         stock_code: Optional[str] = None,
         kind: Optional[FilingKind] = None,
         since: Optional[str] = None,
+        exchange: Optional[str] = None,
     ) -> tuple[str, list[object]]:
         clauses: list[str] = []
         params: list[object] = []
@@ -196,6 +197,34 @@ class DiskStorage(AbstractStorage):
         if since:
             clauses.append("published_at >= ?")
             params.append(since)
+        if exchange:
+            # Infer exchange from stock_code prefix (A-shares only).
+            # HKEX stocks use 5-digit codes (00700 etc.) that overlap with
+            # SZSE 0-prefix codes, so we guard A-share filters with source != 'hkex'.
+            #   SZSE: 0/2/3 prefix  |  SSE: 6 prefix  |  BSE: 4/8/920 prefix
+            #   HKEX: source = 'hkex'
+            exchange_prefixes = {
+                "SZSE": ("0", "2", "3"),
+                "SSE": ("6",),
+                "BSE": ("4", "8", "920"),
+            }
+            if exchange in exchange_prefixes:
+                # A-share exchanges: exclude HKEX source to avoid code-prefix overlap
+                clauses.append("source != 'hkex'")
+                prefixes = exchange_prefixes[exchange]
+                if len(prefixes) == 1:
+                    clauses.append("stock_code LIKE ?")
+                    params.append(f"{prefixes[0]}%")
+                else:
+                    clauses.append(
+                        "("
+                        + " OR ".join("stock_code LIKE ?" for _ in prefixes)
+                        + ")"
+                    )
+                    for p in prefixes:
+                        params.append(f"{p}%")
+            elif exchange == "HKEX":
+                clauses.append("(source = 'hkex')")
         where_clause = " WHERE " + " AND ".join(clauses) if clauses else ""
         return where_clause, params
 
@@ -207,6 +236,7 @@ class DiskStorage(AbstractStorage):
         since: Optional[str] = None,
         limit: Optional[int] = None,
         offset: int = 0,
+        exchange: Optional[str] = None,
     ) -> List[FilingRef]:
         if not self._meta_db:
             return []
@@ -223,6 +253,7 @@ class DiskStorage(AbstractStorage):
             stock_code=stock_code,
             kind=kind,
             since=since,
+            exchange=exchange,
         )
         query += where_clause
         query += " ORDER BY published_at DESC, source_id DESC"
@@ -256,6 +287,7 @@ class DiskStorage(AbstractStorage):
         stock_code: Optional[str] = None,
         kind: Optional[FilingKind] = None,
         since: Optional[str] = None,
+        exchange: Optional[str] = None,
     ) -> int:
         if not self._meta_db:
             return 0
@@ -265,6 +297,7 @@ class DiskStorage(AbstractStorage):
             stock_code=stock_code,
             kind=kind,
             since=since,
+            exchange=exchange,
         )
         query += where_clause
         with self._lock:

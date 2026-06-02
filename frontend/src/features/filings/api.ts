@@ -16,6 +16,7 @@ export async function listFilings(params: {
   source?: string
   kind?: string
   since?: string
+  exchange?: string
 }) {
   const search = new URLSearchParams()
   if (params.limit) search.set('limit', String(params.limit))
@@ -24,6 +25,7 @@ export async function listFilings(params: {
   if (params.source) search.set('source', params.source)
   if (params.kind) search.set('kind', params.kind)
   if (params.since) search.set('since', params.since)
+  if (params.exchange) search.set('exchange', params.exchange)
 
   const query = search.toString()
   const path = query ? `/filings?${query}` : '/filings'

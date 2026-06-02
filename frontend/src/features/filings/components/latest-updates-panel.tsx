@@ -4,13 +4,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FilingTable } from '@/features/filings/components/filing-table'
-import { KIND_OPTIONS, SOURCE_OPTIONS } from '@/features/filings/constants'
+import { KIND_OPTIONS, EXCHANGE_OPTIONS } from '@/features/filings/constants'
 import type { FilingItem } from '@/features/filings/types'
 
 export const PAGE_SIZE = 20
 
 export type LatestFilterState = {
-  source: string
+  exchange: string
   kind: string
   page: number
   since: string
@@ -41,11 +41,11 @@ export function LatestUpdatesPanel({
 }: LatestUpdatesPanelProps) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const currentPage = filters.page
-  const hasActiveFilter = filters.source !== '' || filters.kind !== '' || filters.since !== ''
+  const hasActiveFilter = filters.exchange !== '' || filters.kind !== '' || filters.since !== ''
 
-  function handleSourceToggle(value: string) {
+  function handleExchangeToggle(value: string) {
     onFiltersChange({
-      source: filters.source === value ? '' : value,
+      exchange: filters.exchange === value ? '' : value,
       page: 0,
     })
   }
@@ -65,7 +65,7 @@ export function LatestUpdatesPanel({
   }
 
   function handleClearFilters() {
-    onFiltersChange({ source: '', kind: '', page: 0, since: '' })
+    onFiltersChange({ exchange: '', kind: '', page: 0, since: '' })
   }
 
   return (
@@ -115,12 +115,12 @@ export function LatestUpdatesPanel({
             <span className="mr-1 text-xs font-medium uppercase tracking-wider text-muted-foreground self-center">
               来源
             </span>
-            {SOURCE_OPTIONS.map((opt) => (
+            {EXCHANGE_OPTIONS.map((opt) => (
               <FilterPill
                 key={opt.value}
                 label={opt.label}
-                active={filters.source === opt.value}
-                onClick={() => handleSourceToggle(opt.value)}
+                active={filters.exchange === opt.value}
+                onClick={() => handleExchangeToggle(opt.value)}
               />
             ))}
           </div>

@@ -10,7 +10,7 @@ import { SyncStatusPanel } from '@/features/filings/components/sync-status-panel
 import { SubscriptionPanel } from '@/features/filings/components/subscription-panel'
 
 const INITIAL_FILTERS: LatestFilterState = {
-  source: '',
+  exchange: '',
   kind: '',
   page: 0,
   since: '',
@@ -45,7 +45,7 @@ export function HomePage() {
       listFilings({
         limit: PAGE_SIZE,
         offset: filters.page * PAGE_SIZE,
-        source: filters.source || undefined,
+        exchange: filters.exchange || undefined,
         kind: filters.kind || undefined,
         since: sinceDate,
       }),
