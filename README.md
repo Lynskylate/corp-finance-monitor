@@ -57,6 +57,7 @@ python3 main.py init config.yaml
 Important sections:
 
 - `engine`
+- `scheduling`
 - `storage`
 - `state_store`
 - `api`
@@ -76,12 +77,28 @@ Phase 2 engine knobs:
   - only used when `full_market: true`
   - controls how many stock codes are grouped into each discover batch
 
+Phase 5 scheduling knobs:
+
+- `scheduling.tiers`
+  - `core`-style tiers can pin a fixed stock list via `stocks`
+  - `full`-style tiers can reuse registry-backed full-market scanning via `use_registry: true`
+- `scheduling.disclosure_windows`
+  - when the current month matches a configured window, the tier interval is multiplied by the configured factor
+  - smaller multipliers win if multiple windows match
+
 ## CLI
 
 Run one sync round:
 
 ```bash
 python3 main.py sync -c config.yaml --source cninfo
+```
+
+Run a single scheduling tier manually:
+
+```bash
+python3 main.py run -c config.yaml --tier core
+python3 main.py run -c config.yaml --tier full --resume
 ```
 
 List stored filings:
@@ -148,6 +165,33 @@ curl -X POST http://127.0.0.1:8190/api/sync \
   -H 'Content-Type: application/json' \
   -d '{"sources":["cninfo"]}'
 ```
+
+## Scheduling
+
+Example:
+
+```yaml
+scheduling:
+  tiers:
+    - name: core
+      stocks: ["000725", "600519", "000858"]
+      interval_minutes: 60
+    - name: full
+      interval_minutes: 720
+      use_registry: true
+  disclosure_windows:
+    - months: [1, 2, 3, 4]
+      multiplier: 0.5
+    - months: [7, 8]
+      multiplier: 0.5
+```
+
+Behavior:
+
+- `cfm run --tier core` runs only the configured core stock pool
+- `cfm run --tier full` runs the full-market path
+- `cfm run_loop()` without `--tier` cycles each configured tier independently
+- in disclosure months, the tier interval is automatically tightened by the configured multiplier
 
 ## Docker + Tailscale
 

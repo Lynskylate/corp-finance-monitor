@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Sequence
 
-from .config import Config
+from .config import Config, SchedulingTierConfig
 from .model import FilingRef
 from .source import AbstractSource
 from .storage import AbstractStorage
@@ -111,6 +111,7 @@ class Engine:
         selected_sources: Optional[Sequence[str]] = None,
         since: Optional[str] = None,
         resume: bool = False,
+        tier: Optional[str] = None,
     ) -> Dict[str, int]:
         """
         执行一轮发现-下载流程。
@@ -123,8 +124,7 @@ class Engine:
                 若为 False，清空进度重新开始。
         返回统计数据: {discovered, fetched, failed}
         """
-        if not resume and self.state_store:
-            self.state_store.clear_scan_progress()
+        tier_cfg = self._get_tier_config(tier)
 
         run_start = datetime.utcnow().isoformat()
         stats = {"discovered": 0, "fetched": 0, "failed": 0}
@@ -162,6 +162,8 @@ class Engine:
                 since=effective_since,
                 concurrency=concurrency,
                 rate_limiter=rate_limiter,
+                resume=resume,
+                tier=tier_cfg,
             )
             stats["discovered"] += source_stats["discovered"]
             stats["fetched"] += source_stats["fetched"]
@@ -184,8 +186,17 @@ class Engine:
         since: Optional[str],
         concurrency: int,
         rate_limiter: RateLimiter,
+        resume: bool,
+        tier: Optional[SchedulingTierConfig],
     ) -> Dict[str, int]:
-        refs = self._discover_refs(name=name, source=source, since=since, concurrency=concurrency)
+        refs = self._discover_refs(
+            name=name,
+            source=source,
+            since=since,
+            concurrency=concurrency,
+            resume=resume,
+            tier=tier,
+        )
         logger.info("Source [%s]: discovered %d filing(s)", name, len(refs))
         if concurrency <= 1:
             return self._fetch_refs_serial(source, refs)
@@ -197,23 +208,53 @@ class Engine:
         source: AbstractSource,
         since: Optional[str],
         concurrency: int,
+        resume: bool,
+        tier: Optional[SchedulingTierConfig],
     ) -> List[FilingRef]:
         scfg = self.config.sources[name]
         logger.info("Source [%s]: discovering...", name)
 
-        if not self._supports_full_market_batching(source, scfg, concurrency):
+        tier_stock_codes = self._resolve_tier_stock_codes(name, source, tier)
+        watchlist = self._resolve_source_watchlist(name, source, tier_stock_codes)
+        use_full_market_progress = False
+        use_batched_discover = self._should_use_batched_discover(
+            source=source,
+            scfg=scfg,
+            concurrency=concurrency,
+            tier=tier,
+            tier_stock_codes=tier_stock_codes,
+        )
+
+        if (
+            (tier is None or tier.use_registry)
+            and source.name == "cninfo"
+            and bool(scfg.options.get("full_market", False))
+        ):
+            use_full_market_progress = True
+
+        if use_full_market_progress and not resume and self.state_store:
+            self.state_store.clear_scan_progress(name)
+
+        if source.name == "cninfo" and tier_stock_codes == []:
+            logger.info("Source [%s]: no matching stocks for tier, skipping", name)
+            return []
+
+        if not use_batched_discover:
             try:
-                return source.discover(scfg.watchlist, since=since)
+                return source.discover(
+                    watchlist,
+                    since=since,
+                )
             except Exception as exc:
                 logger.error("Source [%s] discover failed: %s", name, exc)
                 return []
 
-        stock_codes = self._get_full_market_stock_codes(source)
+        stock_codes = tier_stock_codes if tier_stock_codes is not None else self._get_full_market_stock_codes(source)
         if not stock_codes:
             return []
 
-        # Skip already-scanned stocks when resuming
-        if self.state_store:
+        # Skip already-scanned stocks when resuming a full-market pass.
+        if use_full_market_progress and resume and self.state_store:
             before = len(stock_codes)
             stock_codes = [
                 code for code in stock_codes
@@ -234,9 +275,10 @@ class Engine:
         batches = list(self._chunked(stock_codes, batch_size))
         workers = min(concurrency, len(batches))
         total_batches = len(batches)
+        scanned_count = 0
 
         logger.info(
-            "Source [%s]: full_market discover in %d batch(es), batch_size=%d, workers=%d",
+            "Source [%s]: batched discover in %d batch(es), batch_size=%d, workers=%d",
             name,
             total_batches,
             batch_size,
@@ -244,23 +286,13 @@ class Engine:
         )
 
         completed_batches = 0
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            future_map = {
-                pool.submit(
-                    source.discover,
-                    scfg.watchlist,
-                    since,
-                    batch,
-                ): batch
-                for batch in batches
-            }
-            for future in as_completed(future_map):
-                batch = future_map[future]
+        if workers <= 1:
+            for batch in batches:
                 try:
-                    batch_refs = future.result()
+                    batch_refs = source.discover(watchlist, since, batch)
                     refs.extend(batch_refs)
-                    # Mark each stock in this batch as scanned
-                    if self.state_store:
+                    scanned_count += len(batch)
+                    if use_full_market_progress and self.state_store:
                         for code in batch:
                             self.state_store.mark_scan_done(name, code)
                 except Exception as exc:
@@ -272,13 +304,51 @@ class Engine:
                         exc,
                     )
                 completed_batches += 1
-                done_count, _ = (
-                    self.state_store.count_scan_progress(name)
-                    if self.state_store else (completed_batches * batch_size, 0)
-                )
                 logger.info(
-                    "Source [%s]: batch %d/%d done, %d stocks scanned",
-                    name, completed_batches, total_batches, done_count,
+                    "Source [%s]: batch %d/%d done, %d/%d stocks scanned",
+                    name,
+                    completed_batches,
+                    total_batches,
+                    scanned_count,
+                    len(stock_codes),
+                )
+            return refs
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            future_map = {
+                pool.submit(
+                    source.discover,
+                    watchlist,
+                    since,
+                    batch,
+                ): batch
+                for batch in batches
+            }
+            for future in as_completed(future_map):
+                batch = future_map[future]
+                try:
+                    batch_refs = future.result()
+                    refs.extend(batch_refs)
+                    scanned_count += len(batch)
+                    if use_full_market_progress and self.state_store:
+                        for code in batch:
+                            self.state_store.mark_scan_done(name, code)
+                except Exception as exc:
+                    logger.error(
+                        "Source [%s] discover batch failed (%s..%s): %s",
+                        name,
+                        batch[0],
+                        batch[-1],
+                        exc,
+                    )
+                completed_batches += 1
+                logger.info(
+                    "Source [%s]: batch %d/%d done, %d/%d stocks scanned",
+                    name,
+                    completed_batches,
+                    total_batches,
+                    scanned_count,
+                    len(stock_codes),
                 )
         return refs
 
@@ -383,6 +453,20 @@ class Engine:
         )
 
     @staticmethod
+    def _should_use_batched_discover(
+        source: AbstractSource,
+        scfg,
+        concurrency: int,
+        tier: Optional[SchedulingTierConfig],
+        tier_stock_codes: Optional[Sequence[str]],
+    ) -> bool:
+        if source.name != "cninfo":
+            return False
+        if bool(scfg.options.get("full_market", False)) and (tier is None or tier.use_registry):
+            return True
+        return concurrency > 1 and tier_stock_codes is not None
+
+    @staticmethod
     def _get_full_market_stock_codes(source: AbstractSource) -> List[str]:
         if not hasattr(source, "_get_registry"):
             return []
@@ -437,15 +521,55 @@ class Engine:
         except Exception as e:
             logger.error("Notification dispatch error: %s", e)
 
-    def run_loop(self):
-        """持续运行: 定期轮询"""
-        interval = self.config.engine.interval_minutes * 60
-        logger.info("Engine started. Interval: %d minutes", self.config.engine.interval_minutes)
+    def run_loop(self, tier: Optional[str] = None):
+        """持续运行: 定期轮询."""
+        tier_cfg = self._get_tier_config(tier)
+
+        if tier_cfg is not None:
+            interval = self._tier_interval_seconds(tier_cfg)
+            logger.info(
+                "Engine started for tier [%s]. Interval: %.2f minutes",
+                tier_cfg.name,
+                interval / 60,
+            )
+            while True:
+                stats = self.run_once(tier=tier_cfg.name)
+                logger.info("Tier [%s] round complete: %s", tier_cfg.name, stats)
+                logger.info("Next tier [%s] check in %.2f minutes...", tier_cfg.name, interval / 60)
+                time.sleep(interval)
+            return
+
+        if not self.config.scheduling.tiers:
+            interval = self.config.engine.interval_minutes * 60
+            logger.info("Engine started. Interval: %d minutes", self.config.engine.interval_minutes)
+            while True:
+                stats = self.run_once()
+                logger.info("Round complete: %s", stats)
+                logger.info("Next check in %d minutes...", self.config.engine.interval_minutes)
+                time.sleep(interval)
+            return
+
+        next_due = {tier_item.name: time.monotonic() for tier_item in self.config.scheduling.tiers}
+        logger.info(
+            "Engine started with scheduling tiers: %s",
+            ", ".join(tier_item.name for tier_item in self.config.scheduling.tiers),
+        )
         while True:
-            stats = self.run_once()
-            logger.info("Round complete: %s", stats)
-            logger.info("Next check in %d minutes...", self.config.engine.interval_minutes)
-            time.sleep(interval)
+            now = time.monotonic()
+            due_tiers = [
+                tier_item
+                for tier_item in self.config.scheduling.tiers
+                if now >= next_due[tier_item.name]
+            ]
+            if not due_tiers:
+                sleep_for = min(next_due.values()) - now
+                time.sleep(max(0.1, sleep_for))
+                continue
+
+            for tier_item in due_tiers:
+                stats = self.run_once(tier=tier_item.name)
+                logger.info("Tier [%s] round complete: %s", tier_item.name, stats)
+                next_due[tier_item.name] = time.monotonic() + self._tier_interval_seconds(tier_item)
 
     def close(self):
         for source in self.sources.values():
@@ -454,3 +578,89 @@ class Engine:
             self.state_store.close()
         if self.storage and hasattr(self.storage, "close"):
             self.storage.close()
+
+    def _get_tier_config(self, tier: Optional[str]) -> Optional[SchedulingTierConfig]:
+        if tier is None:
+            return None
+        for item in self.config.scheduling.tiers:
+            if item.name == tier:
+                return item
+        raise ValueError(f"Unknown scheduling tier: {tier}")
+
+    def _tier_interval_seconds(
+        self,
+        tier: SchedulingTierConfig,
+        month: Optional[int] = None,
+    ) -> float:
+        month = month or datetime.utcnow().month
+        multiplier = 1.0
+        matched = [
+            window.multiplier
+            for window in self.config.scheduling.disclosure_windows
+            if month in window.months
+        ]
+        if matched:
+            multiplier = min(matched)
+        return tier.interval_minutes * 60 * multiplier
+
+    def _resolve_tier_stock_codes(
+        self,
+        name: str,
+        source: AbstractSource,
+        tier: Optional[SchedulingTierConfig],
+    ) -> Optional[List[str]]:
+        if tier is None or not tier.stocks:
+            return None
+        if source.name == "cninfo":
+            return list(tier.stocks)
+        matched = [
+            entry.get("stock", "")
+            for entry in self.config.sources[name].watchlist
+            if entry.get("stock", "") in set(tier.stocks)
+        ]
+        return matched
+
+    def _resolve_source_watchlist(
+        self,
+        name: str,
+        source: AbstractSource,
+        tier_stock_codes: Optional[Sequence[str]],
+    ) -> Optional[List[dict]]:
+        scfg = self.config.sources[name]
+        if tier_stock_codes is None:
+            return scfg.watchlist
+
+        if source.name != "cninfo":
+            return [
+                entry
+                for entry in scfg.watchlist
+                if entry.get("stock", "") in set(tier_stock_codes)
+            ]
+
+        kinds = source.options.get("kinds", ["annual", "semi", "q1", "q3"])
+        by_stock = {
+            entry.get("stock", ""): dict(entry)
+            for entry in scfg.watchlist
+            if entry.get("stock")
+        }
+        watchlist: List[dict] = []
+        missing_codes: List[str] = []
+        for code in tier_stock_codes:
+            if code in by_stock:
+                watchlist.append(by_stock[code])
+                continue
+            missing_codes.append(code)
+
+        if missing_codes and hasattr(source, "_get_registry"):
+            try:
+                registry = source._get_registry()  # type: ignore[attr-defined]
+                for code in missing_codes:
+                    entry = registry.lookup(code)
+                    if entry is None:
+                        logger.warning("Source [%s]: stock %s not found in registry", name, code)
+                        continue
+                    watchlist.append(entry.to_watchlist_entry(kinds=kinds))
+            except Exception as exc:
+                logger.error("Source [%s]: failed to resolve tier stocks from registry: %s", name, exc)
+
+        return watchlist

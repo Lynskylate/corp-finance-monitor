@@ -7,6 +7,20 @@ engine:
   concurrency: 1       # 1=完全串行; >1=并发 fetch/full_market discover
   fetch_delay_seconds: 0.5  # 相邻外部 fetch 请求的最小间隔
 
+scheduling:
+  tiers:
+    - name: core
+      stocks: ["000725", "600519", "000858"]
+      interval_minutes: 60
+    - name: full
+      interval_minutes: 720
+      use_registry: true
+  disclosure_windows:
+    - months: [1, 2, 3, 4]   # 年报季
+      multiplier: 0.5
+    - months: [7, 8]         # 中报季
+      multiplier: 0.5
+
 storage:
   backend: disk         # 目前仅支持disk
   base_dir: ./data      # 数据存储根目录

@@ -68,12 +68,15 @@ def cmd_run(args):
     cfg, engine = _new_engine(args.config)
     try:
         if cfg.engine.run_once:
-            stats = engine.run_once(resume=getattr(args, "resume", False))
+            stats = engine.run_once(
+                resume=getattr(args, "resume", False),
+                tier=getattr(args, "tier", None),
+            )
             print(f"\n{'='*50}")
             print(f"  Complete: {stats}")
             print(f"{'='*50}")
         else:
-            engine.run_loop()
+            engine.run_loop(tier=getattr(args, "tier", None))
     finally:
         engine.close()
 
@@ -203,6 +206,20 @@ engine:
   concurrency: 1
   fetch_delay_seconds: 0.5
 
+scheduling:
+  tiers:
+    - name: core
+      stocks: ["000725", "600519", "000858"]
+      interval_minutes: 60
+    - name: full
+      interval_minutes: 720
+      use_registry: true
+  disclosure_windows:
+    - months: [1, 2, 3, 4]
+      multiplier: 0.5
+    - months: [7, 8]
+      multiplier: 0.5
+
 storage:
   backend: disk
   base_dir: ./data
@@ -252,6 +269,7 @@ def main():
 
     p_run = sub.add_parser("run", help="执行一轮发现-下载或持续轮询")
     p_run.add_argument("-c", "--config", default="config.yaml", help="Config path")
+    p_run.add_argument("--tier", help="Run only one configured scheduling tier")
     p_run.add_argument("--resume", action="store_true", help="Resume from last scan checkpoint")
     p_run.add_argument("-v", "--verbose", action="store_true")
 
