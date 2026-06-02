@@ -171,6 +171,35 @@ class TestHealthAndNotFound(_ServerBase):
 
 
 class TestFilingsEndpoint(_ServerBase):
+    def test_filings_limit_offset_uses_storage_pagination(self):
+        refs = [
+            FilingRef(
+                source="page-test",
+                source_id=f"page-{idx:03d}",
+                stock_code="000725",
+                stock_name="FAKE CO",
+                title=f"2025年第{idx}条公告",
+                kind=FilingKind.ANNUAL,
+                published_at=f"2025-04-{idx:02d}",
+                url="",
+            )
+            for idx in range(1, 6)
+        ]
+        for ref in refs:
+            self.engine.storage.upsert_metadata(ref)
+
+        status, body = _http_get(self.base + "/api/filings?source=page-test&limit=2&offset=1")
+        self.assertEqual(status, 200)
+        items = body.get("items", [])
+        self.assertEqual(len(items), 2)
+        self.assertEqual(body.get("total"), 5)
+        self.assertEqual(body.get("limit"), 2)
+        self.assertEqual(body.get("offset"), 1)
+        self.assertEqual(
+            [item["source_id"] for item in items],
+            ["page-004", "page-003"],
+        )
+
     def test_filings_empty_initially(self):
         # Other tests in this class may have inserted fake source records.
         # We just assert the endpoint responds with a JSON list of items.

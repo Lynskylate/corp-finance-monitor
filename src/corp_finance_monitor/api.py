@@ -96,16 +96,23 @@ def create_app(config: Config, source_registry: Dict[str, type]) -> FastAPI:
     ):
         if limit < 0 or offset < 0:
             raise HTTPException(status_code=400, detail="limit_offset_must_be_non_negative")
+        filter_kind = FilingKind(kind) if kind else None
         refs = engine.storage.list_refs(
             source=source,
             stock_code=stock_code,
-            kind=FilingKind(kind) if kind else None,
+            kind=filter_kind,
+            since=since,
+            limit=limit or None,
+            offset=offset,
+        )
+        total = engine.storage.count_refs(
+            source=source,
+            stock_code=stock_code,
+            kind=filter_kind,
             since=since,
         )
-        total = len(refs)
-        items = refs[offset : offset + limit] if limit else refs[offset:]
         return {
-            "items": [serialize_ref(ref) for ref in items],
+            "items": [serialize_ref(ref) for ref in refs],
             "total": total,
             "limit": limit,
             "offset": offset,

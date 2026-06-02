@@ -53,8 +53,21 @@ class AbstractStorage(ABC):
         stock_code: Optional[str] = None,
         kind: Optional[FilingKind] = None,
         since: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
     ) -> List[FilingRef]:
         """按条件查询已存储的财报引用"""
+        ...
+
+    @abstractmethod
+    def count_refs(
+        self,
+        source: Optional[str] = None,
+        stock_code: Optional[str] = None,
+        kind: Optional[FilingKind] = None,
+        since: Optional[str] = None,
+    ) -> int:
+        """按条件统计已存储的财报引用数量"""
         ...
 
     @abstractmethod

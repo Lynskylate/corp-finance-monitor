@@ -171,30 +171,63 @@ class DiskStorage(AbstractStorage):
             published_at=row["published_at"] or "",
         )
 
+    def _build_ref_filters(
+        self,
+        source: Optional[str] = None,
+        stock_code: Optional[str] = None,
+        kind: Optional[FilingKind] = None,
+        since: Optional[str] = None,
+    ) -> tuple[str, list[object]]:
+        clauses: list[str] = []
+        params: list[object] = []
+        if source:
+            clauses.append("source = ?")
+            params.append(source)
+        if stock_code:
+            clauses.append("stock_code = ?")
+            params.append(stock_code)
+        if kind:
+            clauses.append("kind = ?")
+            params.append(kind.value)
+        if since:
+            clauses.append("published_at >= ?")
+            params.append(since)
+        where_clause = " WHERE " + " AND ".join(clauses) if clauses else ""
+        return where_clause, params
+
     def list_refs(
         self,
         source: Optional[str] = None,
         stock_code: Optional[str] = None,
         kind: Optional[FilingKind] = None,
         since: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
     ) -> List[FilingRef]:
         if not self._meta_db:
             return []
-        query = "SELECT source, source_id, stock_code, stock_name, title, kind, published_at, stored_path FROM filings WHERE 1=1"
-        params = []
-        if source:
-            query += " AND source = ?"
-            params.append(source)
-        if stock_code:
-            query += " AND stock_code = ?"
-            params.append(stock_code)
-        if kind:
-            query += " AND kind = ?"
-            params.append(kind.value)
-        if since:
-            query += " AND published_at >= ?"
-            params.append(since)
+        if offset < 0:
+            raise ValueError("offset must be non-negative")
+        if limit is not None and limit < 0:
+            raise ValueError("limit must be non-negative")
+        query = (
+            "SELECT source, source_id, stock_code, stock_name, title, kind, published_at, stored_path "
+            "FROM filings"
+        )
+        where_clause, params = self._build_ref_filters(
+            source=source,
+            stock_code=stock_code,
+            kind=kind,
+            since=since,
+        )
+        query += where_clause
         query += " ORDER BY published_at DESC, source_id DESC"
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+        elif offset:
+            query += " LIMIT -1 OFFSET ?"
+            params.append(offset)
 
         with self._lock:
             cursor = self._meta_db.execute(query, params)
@@ -210,6 +243,27 @@ class DiskStorage(AbstractStorage):
                 )
             )
         return refs
+
+    def count_refs(
+        self,
+        source: Optional[str] = None,
+        stock_code: Optional[str] = None,
+        kind: Optional[FilingKind] = None,
+        since: Optional[str] = None,
+    ) -> int:
+        if not self._meta_db:
+            return 0
+        query = "SELECT COUNT(*) FROM filings"
+        where_clause, params = self._build_ref_filters(
+            source=source,
+            stock_code=stock_code,
+            kind=kind,
+            since=since,
+        )
+        query += where_clause
+        with self._lock:
+            row = self._meta_db.execute(query, params).fetchone()
+        return int(row[0]) if row else 0
 
     def delete(self, ref: FilingRef) -> bool:
         path = self.get_path(ref) or self._build_path(ref)
