@@ -14,15 +14,15 @@ type FilingTableProps = {
 export function FilingTable({ items, emptyMessage }: FilingTableProps) {
   if (items.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/80 px-6 py-12 text-center text-sm text-slate-500">
+      <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
         {emptyMessage}
       </div>
     )
   }
 
   return (
-    <div className="overflow-hidden rounded-[24px] border border-slate-200">
-      <div className="hidden grid-cols-[1.2fr_3fr_1fr_1.2fr_0.9fr] gap-3 bg-slate-950 px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 md:grid">
+    <div className="overflow-hidden rounded-md border">
+      <div className="hidden grid-cols-[1.2fr_3fr_1fr_1.2fr_0.9fr] gap-3 bg-muted px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground md:grid">
         <span>代码</span>
         <span>标题</span>
         <span>类型</span>
@@ -30,35 +30,35 @@ export function FilingTable({ items, emptyMessage }: FilingTableProps) {
         <span className="text-right">动作</span>
       </div>
 
-      <div className="divide-y divide-slate-200 bg-white">
+      <div className="divide-y bg-background">
         {items.map((item) => {
           const relative = formatRelativeTime(item.published_at)
           const fileSizeStr = formatFileSize(item.file_size)
           return (
             <div
               key={item.unique_key}
-              className="grid gap-3 px-5 py-4 md:grid-cols-[1.2fr_3fr_1fr_1.2fr_0.9fr] md:items-center"
+              className="grid gap-3 px-4 py-3 md:grid-cols-[1.2fr_3fr_1fr_1.2fr_0.9fr] md:items-center"
             >
               <div>
-                <p className="font-semibold text-slate-900">{item.stock_code || '未标注'}</p>
-                <p className="text-sm text-slate-500">{item.stock_name || item.source.toUpperCase()}</p>
+                <p className="font-medium">{item.stock_code || '未标注'}</p>
+                <p className="text-sm text-muted-foreground">{item.stock_name || item.source.toUpperCase()}</p>
               </div>
               <div>
-                <p className="font-medium text-slate-900">{item.title}</p>
+                <p className="font-medium">{item.title}</p>
                 <div className="mt-1 flex items-center gap-2">
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-400">{item.source}</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{item.source}</p>
                   {fileSizeStr && (
-                    <p className="text-xs text-slate-400">· {fileSizeStr}</p>
+                    <p className="text-xs text-muted-foreground">· {fileSizeStr}</p>
                   )}
                 </div>
               </div>
               <div>
-                <Badge>{formatKind(item.kind)}</Badge>
+                <Badge variant="secondary">{formatKind(item.kind)}</Badge>
               </div>
               <div>
-                <p className="text-sm text-slate-600">{formatDateTime(item.published_at)}</p>
+                <p className="text-sm text-muted-foreground">{formatDateTime(item.published_at)}</p>
                 {relative && (
-                  <p className="mt-0.5 text-xs text-emerald-700">{relative}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{relative}</p>
                 )}
               </div>
               <div className="flex items-center justify-end gap-2">
@@ -69,14 +69,14 @@ export function FilingTable({ items, emptyMessage }: FilingTableProps) {
                   </Link>
                 </Button>
                 {item.url ? (
-                  <Button asChild size="sm" variant="secondary">
+                  <Button asChild size="sm" variant="outline">
                     <a href={item.url} target="_blank" rel="noreferrer">
                       <ExternalLink className="h-4 w-4" />
                       原文
                     </a>
                   </Button>
                 ) : (
-                  <Button asChild size="sm" variant="secondary">
+                  <Button asChild size="sm" variant="outline">
                     <a href={`/api/filings/${item.source}/${item.source_id}/file`} target="_blank" rel="noreferrer">
                       <Download className="h-4 w-4" />
                       本地

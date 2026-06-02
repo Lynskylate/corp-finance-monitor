@@ -40,7 +40,7 @@ export function SyncStatusPanel() {
 
   return (
     <Card id="sync">
-      <CardHeader className="gap-4 border-b border-slate-200/80 pb-5">
+      <CardHeader>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>采集状态</CardTitle>
@@ -52,7 +52,7 @@ export function SyncStatusPanel() {
             <Button
               onClick={() => backfillMutation.mutate()}
               disabled={backfillMutation.isPending || syncMutation.isPending}
-              variant="secondary"
+              variant="outline"
             >
               {backfillMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -76,7 +76,7 @@ export function SyncStatusPanel() {
         </div>
 
         {syncMutation.isError && (
-          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
             <XCircle className="h-4 w-4 shrink-0" />
             {syncMutation.error instanceof Error && syncMutation.error.message.includes('409')
               ? '已有同步任务正在运行，请稍后再试。'
@@ -85,7 +85,7 @@ export function SyncStatusPanel() {
         )}
 
         {syncMutation.isSuccess && (
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+          <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
             同步完成：发现 {syncMutation.data?.stats.discovered ?? 0} 条，
             下载 {syncMutation.data?.stats.fetched ?? 0} 条，
@@ -94,7 +94,7 @@ export function SyncStatusPanel() {
         )}
 
         {backfillMutation.isSuccess && (
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+          <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
             回填完成：文件大小更新 {backfillMutation.data?.stats.file_size_updated ?? 0} 条，
             链接更新 {backfillMutation.data?.stats.url_updated ?? 0} 条。
@@ -102,26 +102,26 @@ export function SyncStatusPanel() {
         )}
 
         {backfillMutation.isError && (
-          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
             <XCircle className="h-4 w-4 shrink-0" />
             回填失败：{backfillMutation.error instanceof Error ? backfillMutation.error.message : '未知错误'}
           </div>
         )}
       </CardHeader>
 
-      <CardContent className="pt-6">
+      <CardContent>
         {runsQuery.isLoading ? (
           <div className="space-y-3">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
           </div>
         ) : runs.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/80 px-6 py-10 text-center text-sm text-slate-500">
+          <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
             暂无采集记录。点击"手动同步"开始第一次采集。
           </div>
         ) : (
-          <div className="overflow-hidden rounded-[24px] border border-slate-200">
-            <div className="hidden grid-cols-[0.5fr_1.5fr_1.5fr_0.8fr_0.8fr_0.8fr] gap-3 bg-slate-950 px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 md:grid">
+          <div className="overflow-hidden rounded-md border">
+            <div className="hidden grid-cols-[0.5fr_1.5fr_1.5fr_0.8fr_0.8fr_0.8fr] gap-3 bg-muted px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground md:grid">
               <span>#</span>
               <span>开始时间</span>
               <span>结束时间</span>
@@ -129,26 +129,24 @@ export function SyncStatusPanel() {
               <span className="text-right">下载</span>
               <span className="text-right">失败</span>
             </div>
-            <div className="divide-y divide-slate-200 bg-white">
+            <div className="divide-y bg-background">
               {runs.map((run) => (
                 <div
                   key={run.id}
-                  className="grid gap-3 px-5 py-3 md:grid-cols-[0.5fr_1.5fr_1.5fr_0.8fr_0.8fr_0.8fr] md:items-center"
+                  className="grid gap-3 px-4 py-3 md:grid-cols-[0.5fr_1.5fr_1.5fr_0.8fr_0.8fr_0.8fr] md:items-center"
                 >
-                  <p className="text-sm font-medium text-slate-500">{run.id}</p>
-                  <p className="text-sm text-slate-700">{formatDateTime(run.started_at)}</p>
-                  <p className="text-sm text-slate-500">{run.finished_at ? formatDateTime(run.finished_at) : '—'}</p>
+                  <p className="text-sm font-medium text-muted-foreground">{run.id}</p>
+                  <p className="text-sm">{formatDateTime(run.started_at)}</p>
+                  <p className="text-sm text-muted-foreground">{run.finished_at ? formatDateTime(run.finished_at) : '—'}</p>
                   <p className="text-right">
                     <Badge variant="outline">{run.discovered}</Badge>
                   </p>
                   <p className="text-right">
-                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                      {run.fetched}
-                    </Badge>
+                    <Badge variant="secondary">{run.fetched}</Badge>
                   </p>
                   <p className="text-right">
                     {run.failed > 0 ? (
-                      <Badge className="bg-red-50 text-red-700 border-red-200 flex items-center gap-1 w-fit ml-auto">
+                      <Badge variant="destructive" className="flex items-center gap-1 w-fit ml-auto">
                         <AlertCircle className="h-3 w-3" />
                         {run.failed}
                       </Badge>
@@ -162,7 +160,7 @@ export function SyncStatusPanel() {
           </div>
         )}
 
-        <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
+        <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
           <RefreshCw className="h-3.5 w-3.5" />
           每 30 秒自动刷新
         </div>

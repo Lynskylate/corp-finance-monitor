@@ -36,17 +36,17 @@ export function FilingDetailPage() {
       </Button>
 
       <Card>
-        <CardHeader className="gap-4 border-b border-slate-200/80 pb-5">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+        <CardHeader>
+          <div className="inline-flex w-fit items-center gap-2 rounded-md border bg-muted px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             <FolderSearch className="h-4 w-4" />
             Filing Detail
           </div>
           <CardTitle>公告详情与落盘信息</CardTitle>
           <CardDescription>
-            对接 <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/api/filings/{'{source}'}/{'{source_id}'}</code>，展示公告元数据、本地落盘路径及原文链接。
+            对接 <code className="rounded bg-muted px-1.5 py-0.5 text-xs">/api/filings/{'{source}'}/{'{source_id}'}</code>，展示公告元数据、本地落盘路径及原文链接。
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-6">
+        <CardContent>
           {!hasParams ? (
             <MissingParamsState />
           ) : detailQuery.isLoading ? (
@@ -62,16 +62,16 @@ export function FilingDetailPage() {
             <div className="space-y-6">
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <Badge>{formatKind(filing.kind)}</Badge>
-                  <span className="text-sm text-slate-500">{filing.source.toUpperCase()}</span>
+                  <Badge variant="secondary">{formatKind(filing.kind)}</Badge>
+                  <span className="text-sm text-muted-foreground">{filing.source.toUpperCase()}</span>
                   {filing.file_size > 0 && (
-                    <span className="text-sm text-slate-400">{formatFileSize(filing.file_size)}</span>
+                    <span className="text-sm text-muted-foreground">{formatFileSize(filing.file_size)}</span>
                   )}
                 </div>
-                <h1 className="font-['Space_Grotesk'] text-3xl font-bold tracking-tight text-slate-950">
+                <h1 className="text-2xl font-bold tracking-tight">
                   {filing.title}
                 </h1>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-muted-foreground">
                   {filing.stock_code} · {filing.stock_name || '未标注'} · {formatDateTime(filing.published_at)}
                 </p>
               </div>
@@ -94,7 +94,7 @@ export function FilingDetailPage() {
                   </a>
                 </Button>
                 {filing.url && (
-                  <Button asChild variant="secondary">
+                  <Button asChild variant="outline">
                     <a href={localFileUrl} target="_blank" rel="noreferrer">
                       <Download className="h-4 w-4" />
                       本地副本
@@ -114,19 +114,19 @@ export function FilingDetailPage() {
 
 function InfoBlock({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
-      <p className="mt-2 break-all text-sm text-slate-700">{value}</p>
+    <div className="rounded-md border bg-muted/50 p-4">
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-2 break-all text-sm">{value}</p>
     </div>
   )
 }
 
 function MissingParamsState() {
   return (
-    <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/80 px-6 py-10 text-center">
-      <FolderSearch className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-      <p className="text-sm font-medium text-slate-600">缺少路径参数</p>
-      <p className="mt-1 text-sm text-slate-400">请通过列表页的"详情"按钮进入公告详情。</p>
+    <div className="rounded-md border border-dashed p-8 text-center">
+      <FolderSearch className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+      <p className="text-sm font-medium">缺少路径参数</p>
+      <p className="mt-1 text-sm text-muted-foreground">请通过列表页的"详情"按钮进入公告详情。</p>
       <Button asChild variant="ghost" className="mt-4">
         <Link to="/">返回首页</Link>
       </Button>
@@ -136,13 +136,13 @@ function MissingParamsState() {
 
 function NotFoundState({ source, sourceId }: { source: string; sourceId: string }) {
   return (
-    <div className="rounded-3xl border border-red-200 bg-red-50 px-6 py-10 text-center">
-      <AlertCircle className="mx-auto mb-3 h-8 w-8 text-red-400" />
-      <p className="text-sm font-medium text-red-800">公告不存在</p>
-      <p className="mt-1 text-sm text-red-600">
-        未找到 <code className="rounded bg-red-100 px-1.5 py-0.5 text-xs">{source}/{sourceId}</code> 对应的公告记录。
+    <div className="rounded-md border border-destructive/50 bg-destructive/10 p-8 text-center">
+      <AlertCircle className="mx-auto mb-3 h-8 w-8 text-destructive" />
+      <p className="text-sm font-medium text-destructive">公告不存在</p>
+      <p className="mt-1 text-sm text-destructive/80">
+        未找到 <code className="rounded bg-destructive/20 px-1.5 py-0.5 text-xs">{source}/{sourceId}</code> 对应的公告记录。
       </p>
-      <p className="mt-2 text-xs text-red-400">该公告可能尚未被采集，或 source/source_id 不正确。</p>
+      <p className="mt-2 text-xs text-muted-foreground">该公告可能尚未被采集，或 source/source_id 不正确。</p>
       <Button asChild variant="ghost" className="mt-4">
         <Link to="/">返回首页</Link>
       </Button>
@@ -152,11 +152,11 @@ function NotFoundState({ source, sourceId }: { source: string; sourceId: string 
 
 function ErrorState({ message }: { message: string }) {
   return (
-    <div className="rounded-3xl border border-amber-200 bg-amber-50 px-6 py-10 text-center">
-      <AlertCircle className="mx-auto mb-3 h-8 w-8 text-amber-500" />
-      <p className="text-sm font-medium text-amber-800">加载失败</p>
-      <p className="mt-1 text-sm text-amber-600">{message || '网络请求异常，请稍后重试。'}</p>
-      <p className="mt-2 text-xs text-amber-400">请检查后端服务是否正常运行，或刷新页面重试。</p>
+    <div className="rounded-md border border-destructive/50 bg-destructive/10 p-8 text-center">
+      <AlertCircle className="mx-auto mb-3 h-8 w-8 text-destructive" />
+      <p className="text-sm font-medium text-destructive">加载失败</p>
+      <p className="mt-1 text-sm text-destructive/80">{message || '网络请求异常，请稍后重试。'}</p>
+      <p className="mt-2 text-xs text-muted-foreground">请检查后端服务是否正常运行，或刷新页面重试。</p>
     </div>
   )
 }

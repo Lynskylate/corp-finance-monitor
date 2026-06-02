@@ -42,7 +42,7 @@ export function SubscriptionPanel() {
 
   return (
     <Card id="subscriptions">
-      <CardHeader className="gap-4 border-b border-slate-200/80 pb-5">
+      <CardHeader>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>订阅管理</CardTitle>
@@ -52,7 +52,7 @@ export function SubscriptionPanel() {
           </div>
           <Button
             onClick={() => setShowForm(!showForm)}
-            variant={showForm ? 'secondary' : 'default'}
+            variant={showForm ? 'outline' : 'default'}
             className="shrink-0"
           >
             {showForm ? '取消' : <><Plus className="h-4 w-4" /> 新建订阅</>}
@@ -60,7 +60,7 @@ export function SubscriptionPanel() {
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-5 pt-6">
+      <CardContent className="space-y-5">
         {showForm && (
           <SubscriptionForm
             onSubmit={(data) => createMutation.mutate(data)}
@@ -75,26 +75,26 @@ export function SubscriptionPanel() {
             <Skeleton className="h-12 w-full" />
           </div>
         ) : subs.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/80 px-6 py-10 text-center text-sm text-slate-500">
-            <Bell className="mx-auto mb-3 h-8 w-8 text-slate-300" />
+          <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+            <Bell className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
             暂无订阅规则。点击"新建订阅"创建第一条。
           </div>
         ) : (
-          <div className="overflow-hidden rounded-[24px] border border-slate-200">
-            <div className="divide-y divide-slate-200 bg-white">
+          <div className="overflow-hidden rounded-md border">
+            <div className="divide-y bg-background">
               {subs.map((sub) => (
                 <div
                   key={sub.id}
-                  className="flex items-center gap-4 px-5 py-4"
+                  className="flex items-center gap-4 px-4 py-3"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-slate-900">{sub.name}</p>
-                      <Badge variant="outline" className="text-xs">
+                      <p className="font-medium">{sub.name}</p>
+                      <Badge variant={sub.active ? 'default' : 'secondary'} className="text-xs">
                         {sub.active ? '启用' : '停用'}
                       </Badge>
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                       {sub.source && <span>来源: {sub.source}</span>}
                       {sub.stock_code && <span>代码: {sub.stock_code}</span>}
                       {sub.kind && <span>类型: {sub.kind}</span>}
@@ -106,7 +106,7 @@ export function SubscriptionPanel() {
                     variant="ghost"
                     onClick={() => deleteMutation.mutate(sub.id)}
                     disabled={deleteMutation.isPending}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
                   >
                     {deleteMutation.isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -123,8 +123,6 @@ export function SubscriptionPanel() {
     </Card>
   )
 }
-
-/* ── Subscription Form ── */
 
 type SubscriptionFormData = {
   name: string
@@ -162,10 +160,10 @@ function SubscriptionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 space-y-4">
+    <form onSubmit={handleSubmit} className="rounded-md border bg-muted/50 p-5 space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <div className="space-y-2">
+          <label className="text-sm font-medium leading-none">
             名称 *
           </label>
           <Input
@@ -175,8 +173,8 @@ function SubscriptionForm({
             required
           />
         </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <div className="space-y-2">
+          <label className="text-sm font-medium leading-none">
             股票代码
           </label>
           <Input
@@ -185,14 +183,14 @@ function SubscriptionForm({
             placeholder="例如：000725"
           />
         </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <div className="space-y-2">
+          <label className="text-sm font-medium leading-none">
             来源
           </label>
           <select
             value={source}
             onChange={(e) => setSource(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <option value="">全部来源</option>
             {SOURCE_OPTIONS.map((opt) => (
@@ -200,14 +198,14 @@ function SubscriptionForm({
             ))}
           </select>
         </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <div className="space-y-2">
+          <label className="text-sm font-medium leading-none">
             类型
           </label>
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <option value="">全部类型</option>
             {KIND_OPTIONS.map((opt) => (
@@ -216,8 +214,8 @@ function SubscriptionForm({
           </select>
         </div>
       </div>
-      <div>
-        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+      <div className="space-y-2">
+        <label className="text-sm font-medium leading-none">
           通知目标
         </label>
         <Input
@@ -228,7 +226,7 @@ function SubscriptionForm({
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-sm text-red-600">
+        <div className="flex items-center gap-2 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0" />
           创建失败：{error.message}
         </div>

@@ -1,3 +1,12 @@
-export function Separator() {
-  return <div className="h-px w-full bg-slate-200" />
+import { type HTMLAttributes } from 'react'
+
+import { cn } from '@/lib/utils'
+
+export function Separator({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn('shrink-0 bg-border', 'h-px w-full', className)}
+      {...props}
+    />
+  )
 }

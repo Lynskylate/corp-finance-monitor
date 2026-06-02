@@ -64,13 +64,13 @@ export function CodeSearchPanel({
 
   return (
     <Card id="lookup">
-      <CardHeader className="gap-4 border-b border-slate-200/80 pb-5">
+      <CardHeader>
         <CardTitle>按代码查询相关信息</CardTitle>
         <CardDescription>
           面向"我就想看某个代码最近出了什么东西"的路径。先按股票代码查，再按时间倒序看关联公告。
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5 pt-6">
+      <CardContent className="space-y-5">
         <form className="flex flex-col gap-3 lg:flex-row" onSubmit={handleSubmit} noValidate>
           <div className="flex-1">
             <Input
@@ -79,7 +79,7 @@ export function CodeSearchPanel({
               placeholder="输入股票代码，例如 000725 或 00700"
             />
             {validationError && (
-              <p className="mt-2 flex items-center gap-1.5 text-sm text-red-600">
+              <p className="mt-2 flex items-center gap-1.5 text-sm text-destructive">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {validationError}
               </p>
@@ -99,13 +99,13 @@ export function CodeSearchPanel({
             <Skeleton className="h-20 w-full" />
           </div>
         ) : error ? (
-          <div className="rounded-3xl border border-red-200 bg-red-50 px-6 py-8 text-center">
-            <AlertCircle className="mx-auto mb-3 h-8 w-8 text-red-400" />
-            <p className="text-sm font-medium text-red-800">查询失败</p>
-            <p className="mt-1 text-sm text-red-600">
+          <div className="rounded-md border border-destructive/50 bg-destructive/10 p-6 text-center">
+            <AlertCircle className="mx-auto mb-3 h-8 w-8 text-destructive" />
+            <p className="text-sm font-medium text-destructive">查询失败</p>
+            <p className="mt-1 text-sm text-destructive/80">
               {error.message || '网络请求异常，请稍后重试。'}
             </p>
-            <p className="mt-3 text-xs text-red-400">请检查股票代码是否正确，或确认后端服务是否正常运行。</p>
+            <p className="mt-3 text-xs text-muted-foreground">请检查股票代码是否正确，或确认后端服务是否正常运行。</p>
           </div>
         ) : (
           <>
@@ -119,25 +119,25 @@ export function CodeSearchPanel({
             />
             {hasSearched && total > PAGE_SIZE && (
               <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted-foreground">
                   第 {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} 条，共 {total} 条
                 </p>
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
-                    variant="secondary"
+                    variant="outline"
                     disabled={page <= 0}
                     onClick={() => onPageChange(page - 1)}
                   >
                     <ChevronLeft className="h-4 w-4" />
                     上一页
                   </Button>
-                  <span className="min-w-[5rem] text-center text-sm font-medium text-slate-700">
+                  <span className="min-w-[5rem] text-center text-sm font-medium">
                     {page + 1} / {totalPages}
                   </span>
                   <Button
                     size="sm"
-                    variant="secondary"
+                    variant="outline"
                     disabled={page >= totalPages - 1}
                     onClick={() => onPageChange(page + 1)}
                   >
