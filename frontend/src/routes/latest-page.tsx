@@ -5,7 +5,7 @@ import { listFilings } from '@/features/filings/api'
 import { LatestUpdatesPanel, PAGE_SIZE, type LatestFilterState } from '@/features/filings/components/latest-updates-panel'
 
 const INITIAL_FILTERS: LatestFilterState = {
-  source: '',
+  exchange: '',
   kind: '',
   page: 0,
   since: '',
@@ -32,7 +32,7 @@ export function LatestPage() {
       listFilings({
         limit: PAGE_SIZE,
         offset: filters.page * PAGE_SIZE,
-        source: filters.source || undefined,
+        exchange: filters.exchange || undefined,
         kind: filters.kind || undefined,
         since: sinceDate,
       }),

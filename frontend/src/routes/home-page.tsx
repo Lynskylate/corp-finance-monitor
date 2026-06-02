@@ -17,7 +17,7 @@ export function HomePage() {
   })
 
   const latestQuery = useQuery({
-    queryKey: ['latest-filings', { source: '', kind: '', page: 0, since: '' }],
+    queryKey: ['latest-filings', { exchange: '', kind: '', page: 0, since: '' }],
     queryFn: () => listFilings({ limit: 5, offset: 0 }),
   })
 
