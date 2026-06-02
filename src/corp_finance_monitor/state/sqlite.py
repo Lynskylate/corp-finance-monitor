@@ -32,7 +32,8 @@ class SQLiteStateStore(AbstractStateStore):
                     kind TEXT,
                     published_at TEXT,
                     fetched_at TEXT,
-                    stored_path TEXT
+                    stored_path TEXT,
+                    url TEXT DEFAULT ''
                 )
                 """
             )
@@ -87,19 +88,6 @@ class SQLiteStateStore(AbstractStateStore):
                 "CREATE INDEX IF NOT EXISTS idx_scan_progress_source ON scan_progress(source)"
             )
             self._conn.commit()
-
-            # --- Migration: add url column if missing ---
-            existing = {
-                row["name"]
-                for row in self._conn.execute(
-                    "PRAGMA table_info(filing_state)"
-                ).fetchall()
-            }
-            if "url" not in existing:
-                self._conn.execute(
-                    "ALTER TABLE filing_state ADD COLUMN url TEXT DEFAULT ''"
-                )
-                self._conn.commit()
 
     def has_filing(self, ref: FilingRef) -> bool:
         with self._lock:

@@ -96,8 +96,7 @@ export function SyncStatusPanel() {
         {backfillMutation.isSuccess && (
           <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
-            回填完成：文件大小更新 {backfillMutation.data?.stats.file_size_updated ?? 0} 条，
-            链接更新 {backfillMutation.data?.stats.url_updated ?? 0} 条。
+            回填完成：文件大小更新 {backfillMutation.data?.stats.file_size_updated ?? 0} 条。
           </div>
         )}
 

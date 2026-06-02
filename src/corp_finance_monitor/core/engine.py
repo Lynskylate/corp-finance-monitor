@@ -575,61 +575,40 @@ class Engine:
     def backfill(self) -> Dict[str, int]:
         """
         一次性回填历史数据：
-        1. 对 file_size=0 的记录，从磁盘读取文件大小并更新
-        2. 对 url 为空的记录，重新 discover 获取 url 并更新元数据
+        对 file_size=0 的记录，从磁盘读取本地文件大小并更新。
 
-        返回统计: {file_size_updated, url_updated}
+        URL 在首次 discover 时已持久化到 meta.db；如有缺失，
+        下一轮正常 sync 会自然补全（discover 返回的 ref 带 url）。
+        不再通过远程 API 全量 re-discover 来补 url，避免长时间阻塞。
+
+        返回统计: {file_size_updated}
         """
-        stats = {"file_size_updated": 0, "url_updated": 0}
+        stats = {"file_size_updated": 0}
 
-        # ── Phase 1: backfill file_size from disk ──
-        if self.storage and hasattr(self.storage, "_meta_db") and self.storage._meta_db:
-            logger.info("Backfill phase 1: updating file_size from disk...")
-            with self.storage._lock:
-                rows = self.storage._meta_db.execute(
-                    "SELECT unique_key, stored_path FROM filings WHERE file_size = 0 OR file_size IS NULL"
-                ).fetchall()
+        if not (self.storage and hasattr(self.storage, "_meta_db") and self.storage._meta_db):
+            logger.warning("Backfill: no meta_db available on storage, skipping")
+            return stats
 
-            for row in rows:
-                stored_path = row["stored_path"]
-                if stored_path and os.path.exists(stored_path):
-                    size = os.path.getsize(stored_path)
-                    if size > 0:
-                        with self.storage._lock:
-                            self.storage._meta_db.execute(
-                                "UPDATE filings SET file_size = ? WHERE unique_key = ?",
-                                (size, row["unique_key"]),
-                            )
-                        self.storage._meta_db.commit()
-                        stats["file_size_updated"] += 1
+        logger.info("Backfill: updating file_size from local disk...")
+        with self.storage._lock:
+            rows = self.storage._meta_db.execute(
+                "SELECT unique_key, stored_path FROM filings WHERE file_size = 0 OR file_size IS NULL"
+            ).fetchall()
 
-            logger.info("Backfill phase 1: updated file_size for %d record(s)", stats["file_size_updated"])
+        for row in rows:
+            stored_path = row["stored_path"]
+            if stored_path and os.path.exists(stored_path):
+                size = os.path.getsize(stored_path)
+                if size > 0:
+                    with self.storage._lock:
+                        self.storage._meta_db.execute(
+                            "UPDATE filings SET file_size = ? WHERE unique_key = ?",
+                            (size, row["unique_key"]),
+                        )
+                    self.storage._meta_db.commit()
+                    stats["file_size_updated"] += 1
 
-        # ── Phase 2: backfill url via re-discover ──
-        logger.info("Backfill phase 2: re-discovering to backfill URLs...")
-        for name, source in self.sources.items():
-            scfg = self.config.sources[name]
-            try:
-                refs = source.discover(watchlist=scfg.watchlist, since="full")
-                logger.info("Backfill [%s]: discovered %d ref(s)", name, len(refs))
-
-                for ref in refs:
-                    if not ref.url:
-                        continue
-                    if not self.storage.exists(ref):
-                        continue
-                    # Record exists — check if url needs updating
-                    existing = self.storage.find_ref(ref.source, ref.source_id)
-                    if existing and existing.url:
-                        continue  # already has url
-                    stored_path = self.storage.get_path(ref) or ""
-                    self.storage.upsert_metadata(ref, stored_path=stored_path)
-                    stats["url_updated"] += 1
-
-            except Exception as exc:
-                logger.error("Backfill [%s] failed: %s", name, exc)
-
-        logger.info("Backfill phase 2: updated url for %d record(s)", stats["url_updated"])
+        logger.info("Backfill: updated file_size for %d record(s)", stats["file_size_updated"])
         return stats
 
     def close(self):

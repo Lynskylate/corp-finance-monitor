@@ -53,6 +53,7 @@ class DiskStorage(AbstractStorage):
                 published_at TEXT,
                 stored_path TEXT NOT NULL,
                 file_size INTEGER DEFAULT 0,
+                url TEXT DEFAULT '',
                 stored_at TEXT DEFAULT (datetime('now'))
             )
         """)
@@ -64,23 +65,6 @@ class DiskStorage(AbstractStorage):
             CREATE INDEX IF NOT EXISTS idx_meta_stock
             ON filings(stock_code)
         """)
-        self._meta_db.commit()
-
-        # --- Migration: add columns that may be missing from older databases ---
-        existing = {
-            row["name"]
-            for row in self._meta_db.execute(
-                "PRAGMA table_info(filings)"
-            ).fetchall()
-        }
-        if "url" not in existing:
-            self._meta_db.execute(
-                "ALTER TABLE filings ADD COLUMN url TEXT DEFAULT ''"
-            )
-        if "file_size" not in existing:
-            self._meta_db.execute(
-                "ALTER TABLE filings ADD COLUMN file_size INTEGER DEFAULT 0"
-            )
         self._meta_db.commit()
 
     def _build_path(self, ref: FilingRef) -> str:
