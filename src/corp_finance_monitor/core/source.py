@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from .config import SourceConfig
 from .model import FilingRef, Filing
@@ -31,6 +31,7 @@ class AbstractSource(ABC):
         self,
         watchlist: Optional[List[dict]] = None,
         since: Optional[str] = None,
+        only_stock_codes: Optional[Sequence[str]] = None,
     ) -> List[FilingRef]:
         """
         发现新的财报文件。
@@ -38,6 +39,8 @@ class AbstractSource(ABC):
         watchlist: 监控列表，每项包含 stock, kinds, filters 等。
         since: 仅发现此日期之后发布的文件 (YYYY-MM-DD)。
                数据源应尽量在 API 层面过滤以减少传输量。
+        only_stock_codes: 可选股票代码白名单。主要给 full-market 批量分片使用；
+               不支持的 source 可以忽略该参数。
         返回 FilingRef 列表（不包含文件内容）。
         """
         ...

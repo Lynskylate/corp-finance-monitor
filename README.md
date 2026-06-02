@@ -64,6 +64,18 @@ Important sections:
 
 `storage.base_dir` and `state_store.path` are resolved relative to the config file location.
 
+Phase 2 engine knobs:
+
+- `engine.concurrency`
+  - `1` keeps the historical serial behavior
+  - `>1` enables concurrent fetch workers
+- `engine.fetch_delay_seconds`
+  - still defines the minimum gap between outbound fetch requests
+  - in concurrent mode this is enforced by a shared global rate limiter
+- `sources.cninfo.options.full_market_batch_size`
+  - only used when `full_market: true`
+  - controls how many stock codes are grouped into each discover batch
+
 ## CLI
 
 Run one sync round:

@@ -4,7 +4,8 @@
 engine:
   run_once: true       # true=执行一轮后退出; false=持续轮询
   interval_minutes: 360  # 轮询间隔(仅run_once=false时生效)
-  fetch_delay_seconds: 0.5
+  concurrency: 1       # 1=完全串行; >1=并发 fetch/full_market discover
+  fetch_delay_seconds: 0.5  # 相邻外部 fetch 请求的最小间隔
 
 storage:
   backend: disk         # 目前仅支持disk
@@ -22,6 +23,9 @@ api:
 sources:
   # --- A股 定期报告 ---
   cninfo:
+    options:
+      full_market: false
+      full_market_batch_size: 50
     watchlist:
       - stock: "000725"
         org_id: "gssz0000725"

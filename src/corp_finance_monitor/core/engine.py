@@ -1,8 +1,10 @@
 from __future__ import annotations
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 import logging
+import threading
 import time
 from datetime import datetime
-from typing import Dict, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence
 
 from .config import Config
 from .model import FilingRef
@@ -11,6 +13,28 @@ from .storage import AbstractStorage
 from .state import AbstractStateStore
 
 logger = logging.getLogger("cfm")
+
+
+class RateLimiter:
+    """Simple shared rate limiter preserving fetch_delay_seconds semantics."""
+
+    def __init__(self, min_interval_seconds: float):
+        self._min_interval = max(0.0, float(min_interval_seconds))
+        self._next_allowed = 0.0
+        self._lock = threading.Lock()
+
+    def wait(self):
+        if self._min_interval <= 0:
+            return
+        while True:
+            with self._lock:
+                now = time.monotonic()
+                if now >= self._next_allowed:
+                    self._next_allowed = now + self._min_interval
+                    return
+                sleep_for = self._next_allowed - now
+            if sleep_for > 0:
+                time.sleep(sleep_for)
 
 
 class Engine:
@@ -120,45 +144,22 @@ class Engine:
         else:
             logger.info("Full sync (no previous successful run)")
 
+        concurrency = max(1, int(self.config.engine.concurrency or 1))
+        rate_limiter = RateLimiter(self.config.engine.fetch_delay_seconds)
+
         for name, source in self.sources.items():
             if selected and name not in selected:
                 continue
-            scfg = self.config.sources[name]
-            logger.info("Source [%s]: discovering...", name)
-
-            try:
-                refs = source.discover(scfg.watchlist, since=effective_since)
-            except Exception as e:
-                logger.error("Source [%s] discover failed: %s", name, e)
-                continue
-
-            stats["discovered"] += len(refs)
-            logger.info("Source [%s]: discovered %d filing(s)", name, len(refs))
-
-            for ref in refs:
-                if self._is_already_fetched(ref):
-                    logger.debug("  SKIP (already fetched): %s", ref.title)
-                    continue
-
-                logger.info("  FETCH: [%s] %s - %s", ref.stock_code, ref.title, ref.url or "")
-                try:
-                    filing = source.fetch(ref)
-                    if filing is None:
-                        logger.warning("  FAILED: fetch returned None for %s", ref.title)
-                        stats["failed"] += 1
-                        continue
-
-                    stored_path = self.storage.store(filing)
-                    self._record_state(ref, stored_path)
-                    stats["fetched"] += 1
-
-                    # Dispatch notifications
-                    self._notify(ref, stored_path)
-                except Exception as e:
-                    logger.error("  FAILED: %s - %s", ref.title, e)
-                    stats["failed"] += 1
-
-                time.sleep(self.config.engine.fetch_delay_seconds)
+            source_stats = self._run_source_once(
+                name=name,
+                source=source,
+                since=effective_since,
+                concurrency=concurrency,
+                rate_limiter=rate_limiter,
+            )
+            stats["discovered"] += source_stats["discovered"]
+            stats["fetched"] += source_stats["fetched"]
+            stats["failed"] += source_stats["failed"]
 
         run_end = datetime.utcnow().isoformat()
         self.state_store.record_run(
@@ -169,6 +170,195 @@ class Engine:
             stats["failed"],
         )
         return stats
+
+    def _run_source_once(
+        self,
+        name: str,
+        source: AbstractSource,
+        since: Optional[str],
+        concurrency: int,
+        rate_limiter: RateLimiter,
+    ) -> Dict[str, int]:
+        refs = self._discover_refs(name=name, source=source, since=since, concurrency=concurrency)
+        logger.info("Source [%s]: discovered %d filing(s)", name, len(refs))
+        if concurrency <= 1:
+            return self._fetch_refs_serial(source, refs)
+        return self._fetch_refs_parallel(source, refs, concurrency, rate_limiter)
+
+    def _discover_refs(
+        self,
+        name: str,
+        source: AbstractSource,
+        since: Optional[str],
+        concurrency: int,
+    ) -> List[FilingRef]:
+        scfg = self.config.sources[name]
+        logger.info("Source [%s]: discovering...", name)
+
+        if not self._supports_full_market_batching(source, scfg, concurrency):
+            try:
+                return source.discover(scfg.watchlist, since=since)
+            except Exception as exc:
+                logger.error("Source [%s] discover failed: %s", name, exc)
+                return []
+
+        stock_codes = self._get_full_market_stock_codes(source)
+        if not stock_codes:
+            return []
+
+        batch_size = max(1, int(scfg.options.get("full_market_batch_size", 50) or 50))
+        refs: List[FilingRef] = []
+        batches = list(self._chunked(stock_codes, batch_size))
+        workers = min(concurrency, len(batches))
+
+        logger.info(
+            "Source [%s]: full_market discover in %d batch(es), batch_size=%d, workers=%d",
+            name,
+            len(batches),
+            batch_size,
+            workers,
+        )
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            future_map = {
+                pool.submit(
+                    source.discover,
+                    scfg.watchlist,
+                    since,
+                    batch,
+                ): batch
+                for batch in batches
+            }
+            for future in as_completed(future_map):
+                batch = future_map[future]
+                try:
+                    refs.extend(future.result())
+                except Exception as exc:
+                    logger.error(
+                        "Source [%s] discover batch failed (%s..%s): %s",
+                        name,
+                        batch[0],
+                        batch[-1],
+                        exc,
+                    )
+        return refs
+
+    def _fetch_refs_serial(
+        self,
+        source: AbstractSource,
+        refs: Sequence[FilingRef],
+    ) -> Dict[str, int]:
+        stats = {"discovered": len(refs), "fetched": 0, "failed": 0}
+        for ref in refs:
+            if self._is_already_fetched(ref):
+                logger.debug("  SKIP (already fetched): %s", ref.title)
+                continue
+
+            logger.info("  FETCH: [%s] %s - %s", ref.stock_code, ref.title, ref.url or "")
+            try:
+                filing = source.fetch(ref)
+                if filing is None:
+                    logger.warning("  FAILED: fetch returned None for %s", ref.title)
+                    stats["failed"] += 1
+                    continue
+
+                stored_path = self.storage.store(filing)
+                self._record_state(ref, stored_path)
+                self._notify(ref, stored_path)
+                stats["fetched"] += 1
+            except Exception as exc:
+                logger.error("  FAILED: %s - %s", ref.title, exc)
+                stats["failed"] += 1
+
+            time.sleep(self.config.engine.fetch_delay_seconds)
+        return stats
+
+    def _fetch_refs_parallel(
+        self,
+        source: AbstractSource,
+        refs: Sequence[FilingRef],
+        concurrency: int,
+        rate_limiter: RateLimiter,
+    ) -> Dict[str, int]:
+        stats = {"discovered": len(refs), "fetched": 0, "failed": 0}
+        if not refs:
+            return stats
+
+        with ThreadPoolExecutor(max_workers=concurrency) as pool:
+            futures: List[Future] = [
+                pool.submit(self._fetch_ref, source, ref, rate_limiter)
+                for ref in refs
+            ]
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    logger.error("Unhandled fetch worker failure: %s", exc)
+                    stats["failed"] += 1
+                    continue
+                stats["fetched"] += result["fetched"]
+                stats["failed"] += result["failed"]
+        return stats
+
+    def _fetch_ref(
+        self,
+        source: AbstractSource,
+        ref: FilingRef,
+        rate_limiter: RateLimiter,
+    ) -> Dict[str, int]:
+        if self._is_already_fetched(ref):
+            logger.debug("  SKIP (already fetched): %s", ref.title)
+            return {"fetched": 0, "failed": 0}
+
+        logger.info("  FETCH: [%s] %s - %s", ref.stock_code, ref.title, ref.url or "")
+        try:
+            rate_limiter.wait()
+            filing = source.fetch(ref)
+            if filing is None:
+                logger.warning("  FAILED: fetch returned None for %s", ref.title)
+                return {"fetched": 0, "failed": 1}
+
+            stored_path = self.storage.store(filing)
+            self._record_state(ref, stored_path)
+            self._notify(ref, stored_path)
+            return {"fetched": 1, "failed": 0}
+        except Exception as exc:
+            logger.error("  FAILED: %s - %s", ref.title, exc)
+            return {"fetched": 0, "failed": 1}
+
+    @staticmethod
+    def _chunked(items: Sequence[str], size: int) -> Iterable[List[str]]:
+        for idx in range(0, len(items), size):
+            yield list(items[idx:idx + size])
+
+    @staticmethod
+    def _supports_full_market_batching(
+        source: AbstractSource,
+        scfg,
+        concurrency: int,
+    ) -> bool:
+        return (
+            concurrency > 1
+            and source.name == "cninfo"
+            and bool(scfg.options.get("full_market", False))
+        )
+
+    @staticmethod
+    def _get_full_market_stock_codes(source: AbstractSource) -> List[str]:
+        if not hasattr(source, "_get_registry"):
+            return []
+        try:
+            registry = source._get_registry()  # type: ignore[attr-defined]
+            stocks = registry.get_a_shares()
+        except Exception as exc:
+            logger.error("Failed to load full-market stock registry: %s", exc)
+            return []
+
+        limit = int(source.options.get("full_market_limit", 0) or 0)
+        stock_codes = [entry.code for entry in stocks]
+        if limit:
+            stock_codes = stock_codes[:limit]
+        return stock_codes
 
     def _is_already_fetched(self, ref: FilingRef) -> bool:
         if self.state_store and self.state_store.has_filing(ref):

@@ -6,7 +6,7 @@ import json
 import random
 import re
 import time
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from corp_finance_monitor.core.source import AbstractSource
 from corp_finance_monitor.core.model import FilingRef, Filing, FilingKind
@@ -28,6 +28,7 @@ class SSESource(AbstractSource):
         self,
         watchlist: Optional[List[dict]] = None,
         since: Optional[str] = None,
+        only_stock_codes: Optional[Sequence[str]] = None,
     ) -> List[FilingRef]:
         refs = []
         for entry in (watchlist or self.watchlist):

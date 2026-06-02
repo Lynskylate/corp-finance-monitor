@@ -7,7 +7,7 @@ API: POST /new/hisAnnouncement/query
   - full_market 模式: 通过 CninfoStockRegistry 获取全量 A 股列表批量 discover
 """
 import logging
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from corp_finance_monitor.core.source import AbstractSource
 from corp_finance_monitor.core.model import FilingRef, Filing, FilingKind
@@ -67,9 +67,13 @@ class CninfoSource(AbstractSource):
         self,
         watchlist: Optional[List[dict]] = None,
         since: Optional[str] = None,
+        only_stock_codes: Optional[Sequence[str]] = None,
     ) -> List[FilingRef]:
         if self._full_market:
-            return self._discover_full_market(since=since)
+            return self._discover_full_market(
+                since=since,
+                only_stock_codes=only_stock_codes,
+            )
         return self._discover_watchlist(watchlist=watchlist, since=since)
 
     def _discover_watchlist(
@@ -95,6 +99,7 @@ class CninfoSource(AbstractSource):
     def _discover_full_market(
         self,
         since: Optional[str] = None,
+        only_stock_codes: Optional[Sequence[str]] = None,
     ) -> List[FilingRef]:
         """Full market mode: use registry to scan all A-shares."""
         refs: List[FilingRef] = []
@@ -105,6 +110,10 @@ class CninfoSource(AbstractSource):
             return refs
 
         stocks = registry.get_a_shares()
+
+        if only_stock_codes:
+            allowed = {code for code in only_stock_codes}
+            stocks = [entry for entry in stocks if entry.code in allowed]
 
         limit = int(self.options.get("full_market_limit", 0) or 0)
         if limit:

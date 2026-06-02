@@ -199,6 +199,7 @@ def cmd_init(args):
 engine:
   run_once: true
   interval_minutes: 360
+  concurrency: 1
   fetch_delay_seconds: 0.5
 
 storage:
@@ -216,6 +217,9 @@ api:
 
 sources:
   cninfo:
+    options:
+      full_market: false
+      full_market_batch_size: 50
     watchlist:
       - stock: "000725"
         org_id: "gssz0000725"
