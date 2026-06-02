@@ -1,12 +1,19 @@
 """
 巨潮资讯网 (cninfo.com.cn) — A股定期报告 Source
 API: POST /new/hisAnnouncement/query
+
+支持两种模式:
+  - watchlist 模式 (默认): 按 config watchlist 逐股票 discover
+  - full_market 模式: 通过 CninfoStockRegistry 获取全量 A 股列表批量 discover
 """
+import logging
 from typing import List, Optional
 
 from corp_finance_monitor.core.source import AbstractSource
 from corp_finance_monitor.core.model import FilingRef, Filing, FilingKind
 from .base import http_post, http_get, parse_timestamp
+
+logger = logging.getLogger("cfm.source.cninfo")
 
 API_URL = "https://www.cninfo.com.cn/new/hisAnnouncement/query"
 PDF_BASE = "https://static.cninfo.com.cn"
@@ -38,11 +45,39 @@ def _detect_kind(title: str) -> FilingKind:
 
 
 class CninfoSource(AbstractSource):
+    def __init__(self, name: str, config: "SourceConfig"):
+        super().__init__(name, config)
+        self._registry: Optional["CninfoStockRegistry"] = None
+
+    @property
+    def _full_market(self) -> bool:
+        return bool(self.options.get("full_market", False))
+
+    def _get_registry(self) -> "CninfoStockRegistry":
+        """Lazily initialize CninfoStockRegistry."""
+        if self._registry is None:
+            from .stock_registry import CninfoStockRegistry
+            cache_dir = self.options.get("registry_cache_dir", "./data/.cfm_state")
+            self._registry = CninfoStockRegistry(cache_dir=cache_dir)
+            self._registry.initialize()
+            self._registry.refresh()
+        return self._registry
+
     def discover(
         self,
         watchlist: Optional[List[dict]] = None,
         since: Optional[str] = None,
     ) -> List[FilingRef]:
+        if self._full_market:
+            return self._discover_full_market(since=since)
+        return self._discover_watchlist(watchlist=watchlist, since=since)
+
+    def _discover_watchlist(
+        self,
+        watchlist: Optional[List[dict]] = None,
+        since: Optional[str] = None,
+    ) -> List[FilingRef]:
+        """Original watchlist-based discover logic (unchanged)."""
         refs = []
         for entry in (watchlist or self.watchlist):
             stock = entry.get("stock", "")
@@ -50,77 +85,125 @@ class CninfoSource(AbstractSource):
             kinds = entry.get("kinds", ["annual", "semi", "q1", "q3"])
             limit = int(entry.get("limit", 0) or 0)
 
-            stock_param = f"{stock},{org_id}" if org_id else stock
-            category = ";".join(
-                CATEGORY_MAP[k] for k in kinds if k in CATEGORY_MAP
-            ) or ALL_KINDS
+            refs.extend(
+                self._discover_single_stock(stock, org_id, kinds, since, limit)
+            )
+            if limit and len(refs) >= limit:
+                return refs[:limit]
+        return refs
 
-            # 确定板块
-            if stock.startswith(("0", "2", "3")):
-                column = "szse"
-            elif stock.startswith(("4", "8")):
-                column = "bj"
-            else:
-                column = "sse"
+    def _discover_full_market(
+        self,
+        since: Optional[str] = None,
+    ) -> List[FilingRef]:
+        """Full market mode: use registry to scan all A-shares."""
+        refs: List[FilingRef] = []
+        try:
+            registry = self._get_registry()
+        except Exception as exc:
+            logger.error("Failed to initialize stock registry: %s", exc)
+            return refs
 
-            # Build date range: since~today (API-level filter)
-            from datetime import datetime as dt
-            se_date = ""
-            if since:
-                end_date = dt.utcnow().strftime("%Y-%m-%d")
-                se_date = f"{since}~{end_date}"
+        stocks = registry.get_a_shares()
 
-            page = 1
-            while True:
-                data = {
-                    "pageNum": str(page),
-                    "pageSize": "30",
-                    "column": column,
-                    "tabName": "fulltext",
-                    "stock": stock_param,
-                    "category": category,
-                    "seDate": se_date,
-                    "sortName": "",
-                    "sortType": "desc",
-                    "isHLtitle": "true",
-                }
-                headers = {
-                    "Referer": f"https://www.cninfo.com.cn/new/disclosure/stock?stockCode={stock}",
-                    "X-Requested-With": "XMLHttpRequest",
-                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                }
-                resp = http_post(API_URL, data=data, headers=headers)
-                result = resp.json()
-                items = result.get("announcements") or []
+        limit = int(self.options.get("full_market_limit", 0) or 0)
+        if limit:
+            stocks = stocks[:limit]
 
-                for a in items:
-                    ann_id = str(a.get("announcementId", ""))
-                    if not ann_id:
-                        continue
-                    title = a.get("announcementTitle", "")
-                    adj_url = a.get("adjunctUrl", "")
-                    ts = a.get("announcementTime", 0)
-                    date = parse_timestamp(ts)
-                    pdf_url = f"{PDF_BASE}/{adj_url.lstrip('/')}" if adj_url else ""
+        for entry in stocks:
+            kinds = self.options.get("kinds", ["annual", "semi", "q1", "q3"])
+            wl = entry.to_watchlist_entry(kinds=kinds)
+            stock = wl["stock"]
+            org_id = wl.get("org_id", "")
 
-                    ref = FilingRef(
-                        source="cninfo",
-                        source_id=ann_id,
-                        stock_code=stock,
-                        stock_name=a.get("secName", ""),
-                        title=title,
-                        kind=_detect_kind(title),
-                        published_at=date,
-                        url=pdf_url,
-                    )
-                    refs.append(ref)
-                    if limit and len(refs) >= limit:
-                        return refs
+            refs.extend(
+                self._discover_single_stock(stock, org_id, kinds, since)
+            )
 
-                has_more = result.get("hasMore", False)
-                if not has_more or page >= 100:
-                    break
-                page += 1
+        return refs
+
+    def _discover_single_stock(
+        self,
+        stock: str,
+        org_id: str,
+        kinds: List[str],
+        since: Optional[str] = None,
+        limit: int = 0,
+    ) -> List[FilingRef]:
+        """Discover filings for a single stock."""
+        refs: List[FilingRef] = []
+
+        stock_param = f"{stock},{org_id}" if org_id else stock
+        category = ";".join(
+            CATEGORY_MAP[k] for k in kinds if k in CATEGORY_MAP
+        ) or ALL_KINDS
+
+        # 确定板块
+        if stock.startswith(("0", "2", "3")):
+            column = "szse"
+        elif stock.startswith(("4", "8")):
+            column = "bj"
+        else:
+            column = "sse"
+
+        # Build date range: since~today (API-level filter)
+        from datetime import datetime as dt
+        se_date = ""
+        if since:
+            end_date = dt.utcnow().strftime("%Y-%m-%d")
+            se_date = f"{since}~{end_date}"
+
+        page = 1
+        while True:
+            data = {
+                "pageNum": str(page),
+                "pageSize": "30",
+                "column": column,
+                "tabName": "fulltext",
+                "stock": stock_param,
+                "category": category,
+                "seDate": se_date,
+                "sortName": "",
+                "sortType": "desc",
+                "isHLtitle": "true",
+            }
+            headers = {
+                "Referer": f"https://www.cninfo.com.cn/new/disclosure/stock?stockCode={stock}",
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            }
+            resp = http_post(API_URL, data=data, headers=headers)
+            result = resp.json()
+            items = result.get("announcements") or []
+
+            for a in items:
+                ann_id = str(a.get("announcementId", ""))
+                if not ann_id:
+                    continue
+                title = a.get("announcementTitle", "")
+                adj_url = a.get("adjunctUrl", "")
+                ts = a.get("announcementTime", 0)
+                date = parse_timestamp(ts)
+                pdf_url = f"{PDF_BASE}/{adj_url.lstrip('/')}" if adj_url else ""
+
+                ref = FilingRef(
+                    source="cninfo",
+                    source_id=ann_id,
+                    stock_code=stock,
+                    stock_name=a.get("secName", ""),
+                    title=title,
+                    kind=_detect_kind(title),
+                    published_at=date,
+                    url=pdf_url,
+                )
+                refs.append(ref)
+                if limit and len(refs) >= limit:
+                    return refs
+
+            has_more = result.get("hasMore", False)
+            if not has_more or page >= 100:
+                break
+            page += 1
 
         return refs
 
@@ -132,3 +215,9 @@ class CninfoSource(AbstractSource):
             return Filing(ref=ref, content=resp.content)
         except Exception:
             return None
+
+    def close(self):
+        """Release resources (registry, etc.)."""
+        if self._registry is not None:
+            self._registry.close()
+            self._registry = None
