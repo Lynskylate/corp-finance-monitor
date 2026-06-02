@@ -110,6 +110,7 @@ class Engine:
         self,
         selected_sources: Optional[Sequence[str]] = None,
         since: Optional[str] = None,
+        resume: bool = False,
     ) -> Dict[str, int]:
         """
         执行一轮发现-下载流程。
@@ -118,8 +119,13 @@ class Engine:
         since: 仅发现此日期之后发布的文件 (YYYY-MM-DD)。
                若为 None，则自动使用上次成功运行的时间。
                若从未运行过，则发现所有文件。
+        resume: 若为 True，从上次断点继续扫描（跳过已完成股票）。
+                若为 False，清空进度重新开始。
         返回统计数据: {discovered, fetched, failed}
         """
+        if not resume and self.state_store:
+            self.state_store.clear_scan_progress()
+
         run_start = datetime.utcnow().isoformat()
         stats = {"discovered": 0, "fetched": 0, "failed": 0}
         selected = set(selected_sources or [])
@@ -206,19 +212,38 @@ class Engine:
         if not stock_codes:
             return []
 
+        # Skip already-scanned stocks when resuming
+        if self.state_store:
+            before = len(stock_codes)
+            stock_codes = [
+                code for code in stock_codes
+                if not self.state_store.is_scan_done(name, code)
+            ]
+            skipped = before - len(stock_codes)
+            if skipped:
+                logger.info(
+                    "Source [%s]: resuming — skipped %d already-scanned stocks, %d remaining",
+                    name, skipped, len(stock_codes),
+                )
+
+        if not stock_codes:
+            return []
+
         batch_size = max(1, int(scfg.options.get("full_market_batch_size", 50) or 50))
         refs: List[FilingRef] = []
         batches = list(self._chunked(stock_codes, batch_size))
         workers = min(concurrency, len(batches))
+        total_batches = len(batches)
 
         logger.info(
             "Source [%s]: full_market discover in %d batch(es), batch_size=%d, workers=%d",
             name,
-            len(batches),
+            total_batches,
             batch_size,
             workers,
         )
 
+        completed_batches = 0
         with ThreadPoolExecutor(max_workers=workers) as pool:
             future_map = {
                 pool.submit(
@@ -232,7 +257,12 @@ class Engine:
             for future in as_completed(future_map):
                 batch = future_map[future]
                 try:
-                    refs.extend(future.result())
+                    batch_refs = future.result()
+                    refs.extend(batch_refs)
+                    # Mark each stock in this batch as scanned
+                    if self.state_store:
+                        for code in batch:
+                            self.state_store.mark_scan_done(name, code)
                 except Exception as exc:
                     logger.error(
                         "Source [%s] discover batch failed (%s..%s): %s",
@@ -241,6 +271,15 @@ class Engine:
                         batch[-1],
                         exc,
                     )
+                completed_batches += 1
+                done_count, _ = (
+                    self.state_store.count_scan_progress(name)
+                    if self.state_store else (completed_batches * batch_size, 0)
+                )
+                logger.info(
+                    "Source [%s]: batch %d/%d done, %d stocks scanned",
+                    name, completed_batches, total_batches, done_count,
+                )
         return refs
 
     def _fetch_refs_serial(

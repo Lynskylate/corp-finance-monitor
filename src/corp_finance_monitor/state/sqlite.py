@@ -72,6 +72,20 @@ class SQLiteStateStore(AbstractStateStore):
             self._conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_subscriptions_source ON subscriptions(source)"
             )
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS scan_progress (
+                    source TEXT NOT NULL,
+                    stock_code TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'done',
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (source, stock_code)
+                )
+                """
+            )
+            self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_scan_progress_source ON scan_progress(source)"
+            )
             self._conn.commit()
 
     def has_filing(self, ref: FilingRef) -> bool:
@@ -209,6 +223,47 @@ class SQLiteStateStore(AbstractStateStore):
         with self._lock:
             rows = self._conn.execute(query, params).fetchall()
         return [self._row_to_subscription(row) for row in rows]
+
+    def mark_scan_done(self, source: str, stock_code: str) -> None:
+        now = datetime.utcnow().isoformat()
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT OR REPLACE INTO scan_progress (source, stock_code, status, updated_at)
+                VALUES (?, ?, 'done', ?)
+                """,
+                (source, stock_code, now),
+            )
+            self._conn.commit()
+
+    def is_scan_done(self, source: str, stock_code: str) -> bool:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT 1 FROM scan_progress WHERE source = ? AND stock_code = ?",
+                (source, stock_code),
+            ).fetchone()
+        return bool(row)
+
+    def count_scan_progress(self, source: str) -> tuple[int, int]:
+        """Return (done_count, total_count) for a source's current scan."""
+        with self._lock:
+            done_row = self._conn.execute(
+                "SELECT COUNT(*) FROM scan_progress WHERE source = ?",
+                (source,),
+            ).fetchone()
+        done_count = int(done_row[0]) if done_row else 0
+        return done_count, 0  # total is tracked by engine, not stored here
+
+    def clear_scan_progress(self, source: Optional[str] = None) -> None:
+        with self._lock:
+            if source:
+                self._conn.execute(
+                    "DELETE FROM scan_progress WHERE source = ?",
+                    (source,),
+                )
+            else:
+                self._conn.execute("DELETE FROM scan_progress")
+            self._conn.commit()
 
     def close(self):
         if self._conn:

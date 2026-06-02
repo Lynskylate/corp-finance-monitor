@@ -68,7 +68,7 @@ def cmd_run(args):
     cfg, engine = _new_engine(args.config)
     try:
         if cfg.engine.run_once:
-            stats = engine.run_once()
+            stats = engine.run_once(resume=getattr(args, "resume", False))
             print(f"\n{'='*50}")
             print(f"  Complete: {stats}")
             print(f"{'='*50}")
@@ -89,6 +89,7 @@ def cmd_sync(args):
         stats = engine.run_once(
             selected_sources=args.source or None,
             since=since,
+            resume=getattr(args, "resume", False),
         )
         print(json.dumps({"stats": stats}, ensure_ascii=False, indent=2))
     finally:
@@ -251,6 +252,7 @@ def main():
 
     p_run = sub.add_parser("run", help="执行一轮发现-下载或持续轮询")
     p_run.add_argument("-c", "--config", default="config.yaml", help="Config path")
+    p_run.add_argument("--resume", action="store_true", help="Resume from last scan checkpoint")
     p_run.add_argument("-v", "--verbose", action="store_true")
 
     p_sync = sub.add_parser("sync", help="执行一轮同步，可选指定source和日期窗口")
@@ -264,6 +266,7 @@ def main():
             "Use 'full' for a full sync ignoring date filters."
         ),
     )
+    p_sync.add_argument("--resume", action="store_true", help="Resume from last scan checkpoint")
     p_sync.add_argument("-v", "--verbose", action="store_true")
 
     p_list = sub.add_parser("list", help="列出已存储的财报")
