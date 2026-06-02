@@ -89,6 +89,7 @@ export async function deleteSubscription(id: number) {
 export async function triggerSync(params?: {
   sources?: string[]
   since?: string
+  resume?: boolean
 }) {
   return fetchJson<{ stats: { discovered: number; fetched: number; failed: number } }>(
     '/sync',

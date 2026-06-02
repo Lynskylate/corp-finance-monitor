@@ -332,7 +332,7 @@ class TestSyncLocking(_ServerBase):
         started = threading.Event()
         proceed = threading.Event()
 
-        def slow_run_once(self, selected_sources=None, since=None):
+        def slow_run_once(self, selected_sources=None, since=None, resume=False, tier=None):
             started.set()
             proceed.wait(timeout=5)
             return {"discovered": 0, "fetched": 0, "failed": 0}

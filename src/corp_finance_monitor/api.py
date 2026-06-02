@@ -191,17 +191,20 @@ def create_app(config: Config, source_registry: Dict[str, type]) -> FastAPI:
             payload = {}
         selected_sources = payload.get("sources") or None
         since = payload.get("since")
+        resume = payload.get("resume", True)
         if selected_sources is not None and not isinstance(selected_sources, list):
             raise HTTPException(status_code=400, detail="sources_must_be_list")
         if since is not None and not isinstance(since, str):
             raise HTTPException(status_code=400, detail="since_must_be_string")
+        if not isinstance(resume, bool):
+            raise HTTPException(status_code=400, detail="resume_must_be_boolean")
         if app.state.run_lock.locked():
             raise HTTPException(status_code=409, detail="sync_already_running")
         async with app.state.run_lock:
             loop = asyncio.get_event_loop()
             stats = await loop.run_in_executor(
                 app.state.executor,
-                lambda: engine.run_once(selected_sources=selected_sources, since=since),
+                lambda: engine.run_once(selected_sources=selected_sources, since=since, resume=resume),
             )
         return {"stats": stats}
 

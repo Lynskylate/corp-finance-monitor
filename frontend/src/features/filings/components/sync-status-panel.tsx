@@ -18,7 +18,7 @@ export function SyncStatusPanel() {
   })
 
   const syncMutation = useMutation({
-    mutationFn: () => triggerSync(),
+    mutationFn: () => triggerSync({ resume: true }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['runs'] })
       queryClient.invalidateQueries({ queryKey: ['latest-filings'] })
