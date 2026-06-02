@@ -21,7 +21,7 @@ from corp_finance_monitor.core.source import AbstractSource
 
 @dataclass
 class _RegistryEntry:
-    code: str
+    stock_code: str
     org_id: str
 
 
@@ -39,7 +39,7 @@ class _BatchingCninfoSource(AbstractSource):
         self.discover_calls = []
         self._registry = _FakeRegistry(
             [
-                _RegistryEntry(code=f"{i:06d}", org_id=f"org{i:06d}")
+                _RegistryEntry(stock_code=f"{i:06d}", org_id=f"org{i:06d}")
                 for i in range(1, 6)
             ]
         )

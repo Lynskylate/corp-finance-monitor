@@ -355,7 +355,7 @@ class Engine:
             return []
 
         limit = int(source.options.get("full_market_limit", 0) or 0)
-        stock_codes = [entry.code for entry in stocks]
+        stock_codes = [entry.stock_code for entry in stocks]
         if limit:
             stock_codes = stock_codes[:limit]
         return stock_codes

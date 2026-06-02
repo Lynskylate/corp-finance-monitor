@@ -113,7 +113,7 @@ class CninfoSource(AbstractSource):
 
         if only_stock_codes:
             allowed = {code for code in only_stock_codes}
-            stocks = [entry for entry in stocks if entry.code in allowed]
+            stocks = [entry for entry in stocks if entry.stock_code in allowed]
 
         limit = int(self.options.get("full_market_limit", 0) or 0)
         if limit:
