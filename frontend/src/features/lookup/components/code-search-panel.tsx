@@ -1,4 +1,4 @@
-import { AlertCircle, Search } from 'lucide-react'
+import { AlertCircle, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FilingTable } from '@/features/filings/components/filing-table'
+import { PAGE_SIZE } from '@/features/filings/components/latest-updates-panel'
 import type { FilingItem } from '@/features/filings/types'
 
 type CodeSearchPanelProps = {
@@ -14,9 +15,12 @@ type CodeSearchPanelProps = {
   onValueChange: (value: string) => void
   onSubmit: () => void
   items: FilingItem[]
+  total: number
   isLoading: boolean
   error: Error | null
   hasSearched: boolean
+  page: number
+  onPageChange: (page: number) => void
 }
 
 const CODE_PATTERN = /^[0-9A-Za-z]{1,10}$/
@@ -26,11 +30,15 @@ export function CodeSearchPanel({
   onValueChange,
   onSubmit,
   items,
+  total,
   isLoading,
   error,
   hasSearched,
+  page,
+  onPageChange,
 }: CodeSearchPanelProps) {
   const [validationError, setValidationError] = useState<string | null>(null)
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -100,14 +108,46 @@ export function CodeSearchPanel({
             <p className="mt-3 text-xs text-red-400">请检查股票代码是否正确，或确认后端服务是否正常运行。</p>
           </div>
         ) : (
-          <FilingTable
-            items={items}
-            emptyMessage={
-              hasSearched
-                ? '该代码当前没有查到匹配记录，可能需要确认交易所代码格式。'
-                : '输入代码后即可查看该标的的相关更新。'
-            }
-          />
+          <>
+            <FilingTable
+              items={items}
+              emptyMessage={
+                hasSearched
+                  ? '该代码当前没有查到匹配记录，可能需要确认交易所代码格式。'
+                  : '输入代码后即可查看该标的的相关更新。'
+              }
+            />
+            {hasSearched && total > PAGE_SIZE && (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-500">
+                  第 {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} 条，共 {total} 条
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={page <= 0}
+                    onClick={() => onPageChange(page - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    上一页
+                  </Button>
+                  <span className="min-w-[5rem] text-center text-sm font-medium text-slate-700">
+                    {page + 1} / {totalPages}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={page >= totalPages - 1}
+                    onClick={() => onPageChange(page + 1)}
+                  >
+                    下一页
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

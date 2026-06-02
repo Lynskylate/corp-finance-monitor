@@ -71,6 +71,16 @@ class AbstractStorage(ABC):
         ...
 
     @abstractmethod
+    def list_distinct_sources(self) -> List[str]:
+        """返回所有不重复的数据源名称"""
+        ...
+
+    @abstractmethod
+    def list_distinct_kinds(self) -> List[str]:
+        """返回所有不重复的报告类型"""
+        ...
+
+    @abstractmethod
     def delete(self, ref: FilingRef) -> bool:
         """删除已存储的财报"""
         ...

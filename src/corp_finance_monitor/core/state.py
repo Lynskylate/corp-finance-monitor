@@ -53,6 +53,10 @@ class AbstractStateStore(ABC):
     ) -> List[Subscription]:
         ...
 
+    @abstractmethod
+    def delete_subscription(self, subscription_id: int) -> bool:
+        ...
+
     # --- Scan progress (Phase 3: checkpoint/resume) ---
 
     @abstractmethod

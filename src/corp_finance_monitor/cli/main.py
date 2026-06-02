@@ -188,6 +188,16 @@ def cmd_serve(args):
     serve(cfg, SOURCE_REGISTRY)
 
 
+def cmd_backfill(args):
+    _setup_logging(args.verbose)
+    _, engine = _new_engine(args.config)
+    try:
+        stats = engine.backfill()
+        print(json.dumps({"backfill": stats}, ensure_ascii=False, indent=2))
+    finally:
+        engine.close()
+
+
 def cmd_init(args):
     path = args.path
     if os.path.exists(path):
@@ -324,6 +334,10 @@ def main():
     p_serve.add_argument("--port", type=int)
     p_serve.add_argument("-v", "--verbose", action="store_true")
 
+    p_backfill = sub.add_parser("backfill", help="一次性回填历史数据的 url 和 file_size")
+    p_backfill.add_argument("-c", "--config", default="config.yaml")
+    p_backfill.add_argument("-v", "--verbose", action="store_true")
+
     p_init = sub.add_parser("init", help="初始化配置文件")
     p_init.add_argument("path", nargs="?", default="config.yaml", help="Output path")
 
@@ -341,6 +355,8 @@ def main():
         cmd_subscribe(args)
     elif args.command == "serve":
         cmd_serve(args)
+    elif args.command == "backfill":
+        cmd_backfill(args)
     elif args.command == "init":
         cmd_init(args)
 

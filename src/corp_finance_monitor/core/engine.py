@@ -1,6 +1,7 @@
 from __future__ import annotations
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 import logging
+import os
 import threading
 import time
 from datetime import datetime
@@ -570,6 +571,66 @@ class Engine:
                 stats = self.run_once(tier=tier_item.name)
                 logger.info("Tier [%s] round complete: %s", tier_item.name, stats)
                 next_due[tier_item.name] = time.monotonic() + self._tier_interval_seconds(tier_item)
+
+    def backfill(self) -> Dict[str, int]:
+        """
+        一次性回填历史数据：
+        1. 对 file_size=0 的记录，从磁盘读取文件大小并更新
+        2. 对 url 为空的记录，重新 discover 获取 url 并更新元数据
+
+        返回统计: {file_size_updated, url_updated}
+        """
+        stats = {"file_size_updated": 0, "url_updated": 0}
+
+        # ── Phase 1: backfill file_size from disk ──
+        if self.storage and hasattr(self.storage, "_meta_db") and self.storage._meta_db:
+            logger.info("Backfill phase 1: updating file_size from disk...")
+            with self.storage._lock:
+                rows = self.storage._meta_db.execute(
+                    "SELECT unique_key, stored_path FROM filings WHERE file_size = 0 OR file_size IS NULL"
+                ).fetchall()
+
+            for row in rows:
+                stored_path = row["stored_path"]
+                if stored_path and os.path.exists(stored_path):
+                    size = os.path.getsize(stored_path)
+                    if size > 0:
+                        with self.storage._lock:
+                            self.storage._meta_db.execute(
+                                "UPDATE filings SET file_size = ? WHERE unique_key = ?",
+                                (size, row["unique_key"]),
+                            )
+                        self.storage._meta_db.commit()
+                        stats["file_size_updated"] += 1
+
+            logger.info("Backfill phase 1: updated file_size for %d record(s)", stats["file_size_updated"])
+
+        # ── Phase 2: backfill url via re-discover ──
+        logger.info("Backfill phase 2: re-discovering to backfill URLs...")
+        for name, source in self.sources.items():
+            scfg = self.config.sources[name]
+            try:
+                refs = source.discover(watchlist=scfg.watchlist, since="full")
+                logger.info("Backfill [%s]: discovered %d ref(s)", name, len(refs))
+
+                for ref in refs:
+                    if not ref.url:
+                        continue
+                    if not self.storage.exists(ref):
+                        continue
+                    # Record exists — check if url needs updating
+                    existing = self.storage.find_ref(ref.source, ref.source_id)
+                    if existing and existing.url:
+                        continue  # already has url
+                    stored_path = self.storage.get_path(ref) or ""
+                    self.storage.upsert_metadata(ref, stored_path=stored_path)
+                    stats["url_updated"] += 1
+
+            except Exception as exc:
+                logger.error("Backfill [%s] failed: %s", name, exc)
+
+        logger.info("Backfill phase 2: updated url for %d record(s)", stats["url_updated"])
+        return stats
 
     def close(self):
         for source in self.sources.values():

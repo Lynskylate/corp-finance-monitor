@@ -66,6 +66,23 @@ class DiskStorage(AbstractStorage):
         """)
         self._meta_db.commit()
 
+        # --- Migration: add columns that may be missing from older databases ---
+        existing = {
+            row["name"]
+            for row in self._meta_db.execute(
+                "PRAGMA table_info(filings)"
+            ).fetchall()
+        }
+        if "url" not in existing:
+            self._meta_db.execute(
+                "ALTER TABLE filings ADD COLUMN url TEXT DEFAULT ''"
+            )
+        if "file_size" not in existing:
+            self._meta_db.execute(
+                "ALTER TABLE filings ADD COLUMN file_size INTEGER DEFAULT 0"
+            )
+        self._meta_db.commit()
+
     def _build_path(self, ref: FilingRef) -> str:
         date_part = ref.published_at[:10] if ref.published_at else "unknown"
         safe_title = "".join(c if c.isalnum() or c in "._- " else "_" for c in ref.title)[:80]
@@ -106,8 +123,8 @@ class DiskStorage(AbstractStorage):
             self._meta_db.execute(
                 """INSERT OR REPLACE INTO filings
                    (unique_key, source, source_id, stock_code, stock_name,
-                    title, kind, published_at, stored_path, file_size)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    title, kind, published_at, stored_path, file_size, url)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     ref.unique_key,
                     ref.source,
@@ -119,6 +136,7 @@ class DiskStorage(AbstractStorage):
                     ref.published_at,
                     final_path,
                     file_size,
+                    ref.url,
                 ),
             )
             self._meta_db.commit()
@@ -153,7 +171,7 @@ class DiskStorage(AbstractStorage):
         with self._lock:
             row = self._meta_db.execute(
                 """
-                SELECT source, source_id, stock_code, stock_name, title, kind, published_at
+                SELECT source, source_id, stock_code, stock_name, title, kind, published_at, url, file_size
                 FROM filings
                 WHERE source = ? AND source_id = ?
                 """,
@@ -169,6 +187,8 @@ class DiskStorage(AbstractStorage):
             title=row["title"] or "",
             kind=FilingKind(row["kind"]) if row["kind"] else FilingKind.OTHER,
             published_at=row["published_at"] or "",
+            url=row["url"] or "",
+            file_size=row["file_size"] or 0,
         )
 
     def _build_ref_filters(
@@ -211,7 +231,7 @@ class DiskStorage(AbstractStorage):
         if limit is not None and limit < 0:
             raise ValueError("limit must be non-negative")
         query = (
-            "SELECT source, source_id, stock_code, stock_name, title, kind, published_at, stored_path "
+            "SELECT source, source_id, stock_code, stock_name, title, kind, published_at, stored_path, url, file_size "
             "FROM filings"
         )
         where_clause, params = self._build_ref_filters(
@@ -240,6 +260,8 @@ class DiskStorage(AbstractStorage):
                     stock_name=row["stock_name"] or "", title=row["title"] or "",
                     kind=FilingKind(row["kind"]) if row["kind"] else FilingKind.OTHER,
                     published_at=row["published_at"] or "",
+                    url=row["url"] or "",
+                    file_size=row["file_size"] or 0,
                 )
             )
         return refs
@@ -264,6 +286,24 @@ class DiskStorage(AbstractStorage):
         with self._lock:
             row = self._meta_db.execute(query, params).fetchone()
         return int(row[0]) if row else 0
+
+    def list_distinct_sources(self) -> List[str]:
+        if not self._meta_db:
+            return []
+        with self._lock:
+            rows = self._meta_db.execute(
+                "SELECT DISTINCT source FROM filings"
+            ).fetchall()
+        return [row["source"] for row in rows]
+
+    def list_distinct_kinds(self) -> List[str]:
+        if not self._meta_db:
+            return []
+        with self._lock:
+            rows = self._meta_db.execute(
+                "SELECT DISTINCT kind FROM filings WHERE kind IS NOT NULL AND kind != ''"
+            ).fetchall()
+        return [row["kind"] for row in rows]
 
     def delete(self, ref: FilingRef) -> bool:
         path = self.get_path(ref) or self._build_path(ref)

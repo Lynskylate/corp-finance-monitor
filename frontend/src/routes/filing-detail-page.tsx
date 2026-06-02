@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, ArrowLeft, ExternalLink, FolderSearch } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Download, ExternalLink, FolderSearch } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getFilingDetail } from '@/features/filings/api'
-import { formatDateTime, formatKind } from '@/lib/format'
+import { formatDateTime, formatFileSize, formatKind } from '@/lib/format'
 import { ApiError } from '@/lib/api-client'
 
 export function FilingDetailPage() {
@@ -23,6 +23,8 @@ export function FilingDetailPage() {
   const filing = detailQuery.data?.filing
   const error = detailQuery.error
   const isNotFound = error instanceof ApiError && error.isNotFound
+  const localFileUrl = hasParams ? `/api/filings/${params.source}/${params.sourceId}/file` : ''
+  const openUrl = filing?.url || localFileUrl
 
   return (
     <div className="space-y-6 pb-10">
@@ -62,6 +64,9 @@ export function FilingDetailPage() {
                 <div className="flex flex-wrap items-center gap-3">
                   <Badge>{formatKind(filing.kind)}</Badge>
                   <span className="text-sm text-slate-500">{filing.source.toUpperCase()}</span>
+                  {filing.file_size > 0 && (
+                    <span className="text-sm text-slate-400">{formatFileSize(filing.file_size)}</span>
+                  )}
                 </div>
                 <h1 className="font-['Space_Grotesk'] text-3xl font-bold tracking-tight text-slate-950">
                   {filing.title}
@@ -74,16 +79,29 @@ export function FilingDetailPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <InfoBlock label="唯一键" value={filing.unique_key} />
                 <InfoBlock label="源 ID" value={filing.source_id} />
-                <InfoBlock label="原始链接" value={filing.url} />
+                <InfoBlock label="原始链接" value={filing.url || '（未记录）'} />
                 <InfoBlock label="本地落盘路径" value={detailQuery.data?.stored_path ?? '未返回'} />
               </div>
 
-              <Button asChild>
-                <a href={filing.url} target="_blank" rel="noreferrer">
-                  <ExternalLink className="h-4 w-4" />
-                  打开原文
-                </a>
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild>
+                  <a href={openUrl} target="_blank" rel="noreferrer">
+                    {filing.url ? (
+                      <><ExternalLink className="h-4 w-4" /> 打开原文</>
+                    ) : (
+                      <><Download className="h-4 w-4" /> 打开本地文件</>
+                    )}
+                  </a>
+                </Button>
+                {filing.url && (
+                  <Button asChild variant="secondary">
+                    <a href={localFileUrl} target="_blank" rel="noreferrer">
+                      <Download className="h-4 w-4" />
+                      本地副本
+                    </a>
+                  </Button>
+                )}
+              </div>
             </div>
           ) : (
             <NotFoundState source={params.source ?? ''} sourceId={params.sourceId ?? ''} />

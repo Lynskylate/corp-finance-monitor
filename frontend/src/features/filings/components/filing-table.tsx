@@ -1,9 +1,9 @@
-import { ExternalLink, FileSearch } from 'lucide-react'
+import { Download, ExternalLink, FileSearch } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { formatDateTime, formatKind, formatRelativeTime } from '@/lib/format'
+import { formatDateTime, formatFileSize, formatKind, formatRelativeTime } from '@/lib/format'
 import type { FilingItem } from '@/features/filings/types'
 
 type FilingTableProps = {
@@ -33,6 +33,7 @@ export function FilingTable({ items, emptyMessage }: FilingTableProps) {
       <div className="divide-y divide-slate-200 bg-white">
         {items.map((item) => {
           const relative = formatRelativeTime(item.published_at)
+          const fileSizeStr = formatFileSize(item.file_size)
           return (
             <div
               key={item.unique_key}
@@ -44,7 +45,12 @@ export function FilingTable({ items, emptyMessage }: FilingTableProps) {
               </div>
               <div>
                 <p className="font-medium text-slate-900">{item.title}</p>
-                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">{item.source}</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-400">{item.source}</p>
+                  {fileSizeStr && (
+                    <p className="text-xs text-slate-400">· {fileSizeStr}</p>
+                  )}
+                </div>
               </div>
               <div>
                 <Badge>{formatKind(item.kind)}</Badge>
@@ -62,12 +68,21 @@ export function FilingTable({ items, emptyMessage }: FilingTableProps) {
                     详情
                   </Link>
                 </Button>
-                <Button asChild size="sm" variant="secondary">
-                  <a href={item.url} target="_blank" rel="noreferrer">
-                    <ExternalLink className="h-4 w-4" />
-                    原文
-                  </a>
-                </Button>
+                {item.url ? (
+                  <Button asChild size="sm" variant="secondary">
+                    <a href={item.url} target="_blank" rel="noreferrer">
+                      <ExternalLink className="h-4 w-4" />
+                      原文
+                    </a>
+                  </Button>
+                ) : (
+                  <Button asChild size="sm" variant="secondary">
+                    <a href={`/api/filings/${item.source}/${item.source_id}/file`} target="_blank" rel="noreferrer">
+                      <Download className="h-4 w-4" />
+                      本地
+                    </a>
+                  </Button>
+                )}
               </div>
             </div>
           )

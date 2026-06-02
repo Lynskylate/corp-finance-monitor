@@ -1,4 +1,4 @@
-import { Activity, ArrowDownWideNarrow, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
+import { Activity, ArrowDownWideNarrow, CalendarDays, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,6 +13,7 @@ export type LatestFilterState = {
   source: string
   kind: string
   page: number
+  since: string
 }
 
 type LatestUpdatesPanelProps = {
@@ -23,6 +24,14 @@ type LatestUpdatesPanelProps = {
   onFiltersChange: (patch: Partial<LatestFilterState>) => void
 }
 
+const DATE_RANGE_OPTIONS = [
+  { value: '', label: '全部时间' },
+  { value: '7', label: '最近 7 天' },
+  { value: '30', label: '最近 30 天' },
+  { value: '90', label: '最近 90 天' },
+  { value: '365', label: '最近 1 年' },
+]
+
 export function LatestUpdatesPanel({
   items,
   total,
@@ -32,7 +41,7 @@ export function LatestUpdatesPanel({
 }: LatestUpdatesPanelProps) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const currentPage = filters.page
-  const hasActiveFilter = filters.source !== '' || filters.kind !== ''
+  const hasActiveFilter = filters.source !== '' || filters.kind !== '' || filters.since !== ''
 
   function handleSourceToggle(value: string) {
     onFiltersChange({
@@ -48,8 +57,15 @@ export function LatestUpdatesPanel({
     })
   }
 
+  function handleDateRange(value: string) {
+    onFiltersChange({
+      since: value === filters.since ? '' : value,
+      page: 0,
+    })
+  }
+
   function handleClearFilters() {
-    onFiltersChange({ source: '', kind: '', page: 0 })
+    onFiltersChange({ source: '', kind: '', page: 0, since: '' })
   }
 
   return (
@@ -59,7 +75,7 @@ export function LatestUpdatesPanel({
           <div>
             <CardTitle>最新更新流</CardTitle>
             <CardDescription>
-              按 <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">published_at</code> 倒序展示，支持来源和类型过滤。
+              按 <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">published_at</code> 倒序展示，支持来源、类型和时间范围过滤。
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -120,6 +136,21 @@ export function LatestUpdatesPanel({
                 label={opt.label}
                 active={filters.kind === opt.value}
                 onClick={() => handleKindToggle(opt.value)}
+              />
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <span className="mr-1 text-xs font-medium uppercase tracking-wider text-slate-400 self-center flex items-center gap-1">
+              <CalendarDays className="h-3.5 w-3.5" />
+              时间
+            </span>
+            {DATE_RANGE_OPTIONS.map((opt) => (
+              <FilterPill
+                key={opt.value}
+                label={opt.label}
+                active={filters.since === opt.value}
+                onClick={() => handleDateRange(opt.value)}
               />
             ))}
           </div>

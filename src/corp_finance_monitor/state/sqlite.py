@@ -88,6 +88,19 @@ class SQLiteStateStore(AbstractStateStore):
             )
             self._conn.commit()
 
+            # --- Migration: add url column if missing ---
+            existing = {
+                row["name"]
+                for row in self._conn.execute(
+                    "PRAGMA table_info(filing_state)"
+                ).fetchall()
+            }
+            if "url" not in existing:
+                self._conn.execute(
+                    "ALTER TABLE filing_state ADD COLUMN url TEXT DEFAULT ''"
+                )
+                self._conn.commit()
+
     def has_filing(self, ref: FilingRef) -> bool:
         with self._lock:
             row = self._conn.execute(
@@ -101,8 +114,8 @@ class SQLiteStateStore(AbstractStateStore):
             self._conn.execute(
                 """
                 INSERT OR REPLACE INTO filing_state
-                (unique_key, source, source_id, stock_code, title, kind, published_at, fetched_at, stored_path)
-                VALUES (?,?,?,?,?,?,?,?,?)
+                (unique_key, source, source_id, stock_code, title, kind, published_at, fetched_at, stored_path, url)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     ref.unique_key,
@@ -114,6 +127,7 @@ class SQLiteStateStore(AbstractStateStore):
                     ref.published_at,
                     datetime.utcnow().isoformat(),
                     stored_path,
+                    ref.url,
                 ),
             )
             self._conn.commit()
@@ -223,6 +237,14 @@ class SQLiteStateStore(AbstractStateStore):
         with self._lock:
             rows = self._conn.execute(query, params).fetchall()
         return [self._row_to_subscription(row) for row in rows]
+
+    def delete_subscription(self, subscription_id: int) -> bool:
+        with self._lock:
+            cur = self._conn.execute(
+                "DELETE FROM subscriptions WHERE id = ?", (subscription_id,)
+            )
+            self._conn.commit()
+            return cur.rowcount > 0
 
     def mark_scan_done(self, source: str, stock_code: str) -> None:
         now = datetime.utcnow().isoformat()

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from corp_finance_monitor.core import Config, Engine, FilingKind
 from corp_finance_monitor.core.model import Subscription
@@ -29,6 +31,7 @@ def serialize_ref(ref):
         "published_at": ref.published_at,
         "url": ref.url,
         "unique_key": ref.unique_key,
+        "file_size": ref.file_size,
     }
 
 
@@ -196,6 +199,50 @@ def create_app(config: Config, source_registry: Dict[str, type]) -> FastAPI:
             stats = await loop.run_in_executor(
                 app.state.executor,
                 lambda: engine.run_once(selected_sources=selected_sources, since=since),
+            )
+        return {"stats": stats}
+
+    @app.get("/api/filings/{source}/{source_id}/file")
+    async def filing_file(source: str, source_id: str):
+        ref = engine.storage.find_ref(source, source_id)
+        if not ref:
+            raise HTTPException(status_code=404, detail="filing_not_found")
+        stored_path = engine.storage.get_path(ref)
+        if not stored_path or not os.path.exists(stored_path):
+            raise HTTPException(status_code=404, detail="file_not_found")
+        return FileResponse(
+            stored_path,
+            media_type="application/pdf",
+            filename=os.path.basename(stored_path),
+        )
+
+    @app.get("/api/stats")
+    async def stats():
+        total = engine.storage.count_refs()
+        by_source: Dict[str, int] = {}
+        for src in engine.storage.list_distinct_sources():
+            by_source[src] = engine.storage.count_refs(source=src)
+        by_kind: Dict[str, int] = {}
+        for kind in engine.storage.list_distinct_kinds():
+            by_kind[kind] = engine.storage.count_refs(kind=FilingKind(kind))
+        return {"total": total, "by_source": by_source, "by_kind": by_kind}
+
+    @app.delete("/api/subscriptions/{subscription_id}")
+    async def delete_subscription(subscription_id: int):
+        deleted = engine.state_store.delete_subscription(subscription_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="subscription_not_found")
+        return {"ok": True}
+
+    @app.post("/api/backfill")
+    async def backfill():
+        if app.state.run_lock.locked():
+            raise HTTPException(status_code=409, detail="sync_already_running")
+        async with app.state.run_lock:
+            loop = asyncio.get_event_loop()
+            stats = await loop.run_in_executor(
+                app.state.executor,
+                lambda: engine.backfill(),
             )
         return {"stats": stats}
 

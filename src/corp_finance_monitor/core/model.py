@@ -44,6 +44,7 @@ class FilingRef:
     kind: FilingKind = FilingKind.OTHER
     published_at: str = ""     # 发布日期 YYYY-MM-DD
     url: str = ""              # 下载URL
+    file_size: int = 0         # 文件大小 (bytes)
 
     @property
     def unique_key(self) -> str:

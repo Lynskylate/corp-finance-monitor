@@ -3,24 +3,42 @@ import { DatabaseZap, FileStack, Radar, SearchCode } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { Card, CardContent } from '@/components/ui/card'
-import { listFilings } from '@/features/filings/api'
+import { listFilings, getStats } from '@/features/filings/api'
 import { LatestUpdatesPanel, PAGE_SIZE, type LatestFilterState } from '@/features/filings/components/latest-updates-panel'
 import { CodeSearchPanel } from '@/features/lookup/components/code-search-panel'
+import { SyncStatusPanel } from '@/features/filings/components/sync-status-panel'
+import { SubscriptionPanel } from '@/features/filings/components/subscription-panel'
 
 const INITIAL_FILTERS: LatestFilterState = {
   source: '',
   kind: '',
   page: 0,
+  since: '',
+}
+
+function daysAgoToISO(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  return d.toISOString().slice(0, 10)
 }
 
 export function HomePage() {
   const [stockCodeInput, setStockCodeInput] = useState('')
   const [activeStockCode, setActiveStockCode] = useState('')
+  const [stockPage, setStockPage] = useState(0)
   const [filters, setFilters] = useState<LatestFilterState>(INITIAL_FILTERS)
 
   function handleFiltersChange(patch: Partial<LatestFilterState>) {
     setFilters((prev) => ({ ...prev, ...patch }))
   }
+
+  function handleStockSubmit() {
+    setActiveStockCode(stockCodeInput.trim())
+    setStockPage(0)
+  }
+
+  // Resolve since value to ISO date
+  const sinceDate = filters.since ? daysAgoToISO(Number(filters.since)) : undefined
 
   const latestQuery = useQuery({
     queryKey: ['latest-filings', filters],
@@ -30,27 +48,40 @@ export function HomePage() {
         offset: filters.page * PAGE_SIZE,
         source: filters.source || undefined,
         kind: filters.kind || undefined,
+        since: sinceDate,
       }),
   })
 
   const stockQuery = useQuery({
-    queryKey: ['stock-filings', activeStockCode],
-    queryFn: () => listFilings({ stockCode: activeStockCode, limit: 50 }),
+    queryKey: ['stock-filings', activeStockCode, stockPage],
+    queryFn: () =>
+      listFilings({
+        stockCode: activeStockCode,
+        limit: PAGE_SIZE,
+        offset: stockPage * PAGE_SIZE,
+      }),
     enabled: activeStockCode.length > 0,
   })
 
-  const stats = useMemo(
-    () => [
+  const statsQuery = useQuery({
+    queryKey: ['stats'],
+    queryFn: getStats,
+  })
+
+  const stats = useMemo(() => {
+    const data = statsQuery.data
+    const sourceCount = data?.by_source ? Object.keys(data.by_source).length : 0
+    return [
       {
-        label: '最新窗口',
-        value: String(latestQuery.data?.total ?? 0),
-        hint: '命中公告总数',
+        label: '公告总数',
+        value: String(data?.total ?? latestQuery.data?.total ?? 0),
+        hint: '已采集公告数',
         icon: Radar,
       },
       {
-        label: '覆盖接口',
-        value: '2',
-        hint: '/api/filings + 详情接口',
+        label: '数据源',
+        value: String(sourceCount || '—'),
+        hint: sourceCount ? Object.entries(data!.by_source).map(([k, v]) => `${k}: ${v}`).join(', ') : '加载中',
         icon: DatabaseZap,
       },
       {
@@ -60,14 +91,13 @@ export function HomePage() {
         icon: SearchCode,
       },
       {
-        label: '后续扩展',
-        value: '∞',
-        hint: '订阅、推送、更多来源',
+        label: '报告类型',
+        value: String(data?.by_kind ? Object.keys(data.by_kind).length : '—'),
+        hint: '覆盖的报告种类',
         icon: FileStack,
       },
-    ],
-    [latestQuery.data?.total],
-  )
+    ]
+  }, [statsQuery.data, latestQuery.data?.total])
 
   return (
     <div className="space-y-6 pb-10">
@@ -121,12 +151,19 @@ export function HomePage() {
       <CodeSearchPanel
         value={stockCodeInput}
         onValueChange={setStockCodeInput}
-        onSubmit={() => setActiveStockCode(stockCodeInput.trim())}
+        onSubmit={handleStockSubmit}
         items={stockQuery.data?.items ?? []}
+        total={stockQuery.data?.total ?? 0}
         isLoading={stockQuery.isLoading}
         error={stockQuery.error ?? null}
         hasSearched={activeStockCode.length > 0}
+        page={stockPage}
+        onPageChange={setStockPage}
       />
+
+      <SyncStatusPanel />
+
+      <SubscriptionPanel />
     </div>
   )
 }

@@ -1,11 +1,13 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
-import { BellRing, SearchCode, TimerReset } from 'lucide-react'
+import { Bell, BellRing, RefreshCw, SearchCode, TimerReset } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/#latest', label: '最新更新', icon: TimerReset },
   { href: '/#lookup', label: '代码查询', icon: SearchCode },
+  { href: '/#sync', label: '采集状态', icon: RefreshCw },
+  { href: '/#subscriptions', label: '订阅管理', icon: Bell },
 ]
 
 export function AppShell() {
