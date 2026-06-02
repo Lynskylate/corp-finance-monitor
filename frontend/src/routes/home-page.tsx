@@ -1,93 +1,36 @@
 import { useQuery } from '@tanstack/react-query'
-import { DatabaseZap, FileStack, Radar, SearchCode } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { DatabaseZap, FileStack, Radar, SearchCode, TimerReset } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { useMemo } from 'react'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { listFilings, getStats } from '@/features/filings/api'
-import { LatestUpdatesPanel, PAGE_SIZE, type LatestFilterState } from '@/features/filings/components/latest-updates-panel'
-import { CodeSearchPanel } from '@/features/lookup/components/code-search-panel'
-import { SyncStatusPanel } from '@/features/filings/components/sync-status-panel'
-import { SubscriptionPanel } from '@/features/filings/components/subscription-panel'
-
-const INITIAL_FILTERS: LatestFilterState = {
-  exchange: '',
-  kind: '',
-  page: 0,
-  since: '',
-}
-
-function daysAgoToISO(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  return d.toISOString().slice(0, 10)
-}
+import { formatDateTime, formatKind, formatRelativeTime } from '@/lib/format'
+import type { FilingItem } from '@/features/filings/types'
 
 export function HomePage() {
-  const [stockCodeInput, setStockCodeInput] = useState('')
-  const [activeStockCode, setActiveStockCode] = useState('')
-  const [stockPage, setStockPage] = useState(0)
-  const [filters, setFilters] = useState<LatestFilterState>(INITIAL_FILTERS)
-
-  function handleFiltersChange(patch: Partial<LatestFilterState>) {
-    setFilters((prev) => ({ ...prev, ...patch }))
-  }
-
-  function handleStockSubmit() {
-    setActiveStockCode(stockCodeInput.trim())
-    setStockPage(0)
-  }
-
-  const sinceDate = filters.since ? daysAgoToISO(Number(filters.since)) : undefined
-
-  const latestQuery = useQuery({
-    queryKey: ['latest-filings', filters],
-    queryFn: () =>
-      listFilings({
-        limit: PAGE_SIZE,
-        offset: filters.page * PAGE_SIZE,
-        exchange: filters.exchange || undefined,
-        kind: filters.kind || undefined,
-        since: sinceDate,
-      }),
-  })
-
-  const stockQuery = useQuery({
-    queryKey: ['stock-filings', activeStockCode, stockPage],
-    queryFn: () =>
-      listFilings({
-        stockCode: activeStockCode,
-        limit: PAGE_SIZE,
-        offset: stockPage * PAGE_SIZE,
-      }),
-    enabled: activeStockCode.length > 0,
-  })
-
   const statsQuery = useQuery({
     queryKey: ['stats'],
     queryFn: getStats,
+  })
+
+  const latestQuery = useQuery({
+    queryKey: ['latest-filings', { source: '', kind: '', page: 0, since: '' }],
+    queryFn: () => listFilings({ limit: 5, offset: 0 }),
   })
 
   const stats = useMemo(() => {
     const data = statsQuery.data
     const sourceCount = data?.by_source ? Object.keys(data.by_source).length : 0
     return [
-      {
-        label: '公告总数',
-        value: String(data?.total ?? latestQuery.data?.total ?? 0),
-        hint: '已采集公告数',
-        icon: Radar,
-      },
+      { label: '公告总数', value: String(data?.total ?? 0), hint: '已采集公告数', icon: Radar },
       {
         label: '数据源',
         value: String(sourceCount || '—'),
         hint: sourceCount ? Object.entries(data!.by_source).map(([k, v]) => `${k}: ${v}`).join(', ') : '加载中',
         icon: DatabaseZap,
-      },
-      {
-        label: '主视角',
-        value: '2',
-        hint: '更新流 / 代码查询',
-        icon: SearchCode,
       },
       {
         label: '报告类型',
@@ -96,68 +39,101 @@ export function HomePage() {
         icon: FileStack,
       },
     ]
-  }, [statsQuery.data, latestQuery.data?.total])
+  }, [statsQuery.data])
 
   return (
-    <div className="space-y-6 pb-10">
-      <section className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-3xl">
-              把企业公告流变成一个可扫、可查、可继续扩展的操作台
-            </CardTitle>
-            <p className="text-muted-foreground">
-              这一版先把"最近发生什么"和"某个代码最近出了什么"两条主路径打通，给后续 agent
-              一个稳定的前端目录、数据流和 UI 基座。
-            </p>
-          </CardHeader>
-        </Card>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-          {stats.map((item) => {
-            const Icon = item.icon
-            return (
-              <Card key={item.label}>
-                <CardContent className="flex items-start gap-4 p-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">{item.label}</p>
-                    <p className="text-2xl font-bold">{item.value}</p>
-                    <p className="text-xs text-muted-foreground">{item.hint}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+    <div className="space-y-6">
+      <section className="grid gap-4 md:grid-cols-3">
+        {stats.map((item) => {
+          const Icon = item.icon
+          return (
+            <Card key={item.label}>
+              <CardContent className="flex items-start gap-4 p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">{item.label}</p>
+                  <p className="text-2xl font-bold">{item.value}</p>
+                  <p className="text-xs text-muted-foreground">{item.hint}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </section>
 
-      <LatestUpdatesPanel
-        items={latestQuery.data?.items ?? []}
-        total={latestQuery.data?.total ?? 0}
-        isLoading={latestQuery.isLoading}
-        filters={filters}
-        onFiltersChange={handleFiltersChange}
-      />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>最近更新</CardTitle>
+            <CardDescription>最新采集的公告</CardDescription>
+          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/latest">
+              <TimerReset className="h-4 w-4" />
+              查看全部
+            </Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {latestQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">加载中...</p>
+          ) : (latestQuery.data?.items ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">暂无数据</p>
+          ) : (
+            <div className="space-y-3">
+              {(latestQuery.data?.items ?? []).map((item: FilingItem) => {
+                const relative = formatRelativeTime(item.published_at)
+                return (
+                  <div key={item.unique_key} className="flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{formatKind(item.kind)}</Badge>
+                        <span className="truncate text-sm font-medium">{item.title}</span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {item.stock_code || item.source} · {formatDateTime(item.published_at)}
+                        {relative && ` · ${relative}`}
+                      </p>
+                    </div>
+                    <Button asChild variant="ghost" size="sm">
+                      <Link to={`/filings/${item.source}/${item.source_id}`}>详情</Link>
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <CodeSearchPanel
-        value={stockCodeInput}
-        onValueChange={setStockCodeInput}
-        onSubmit={handleStockSubmit}
-        items={stockQuery.data?.items ?? []}
-        total={stockQuery.data?.total ?? 0}
-        isLoading={stockQuery.isLoading}
-        error={stockQuery.error ?? null}
-        hasSearched={activeStockCode.length > 0}
-        page={stockPage}
-        onPageChange={setStockPage}
-      />
-
-      <SyncStatusPanel />
-
-      <SubscriptionPanel />
+      <section className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardContent className="flex items-center gap-4 p-4">
+            <SearchCode className="h-8 w-8 text-muted-foreground" />
+            <div>
+              <p className="font-medium">代码查询</p>
+              <p className="text-sm text-muted-foreground">按股票代码搜索公告</p>
+            </div>
+            <Button asChild variant="outline" size="sm" className="ml-auto">
+              <Link to="/lookup">前往</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-4 p-4">
+            <DatabaseZap className="h-8 w-8 text-muted-foreground" />
+            <div>
+              <p className="font-medium">采集状态</p>
+              <p className="text-sm text-muted-foreground">查看同步记录与订阅</p>
+            </div>
+            <Button asChild variant="outline" size="sm" className="ml-auto">
+              <Link to="/sync">前往</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </section>
     </div>
   )
 }
