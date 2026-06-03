@@ -460,7 +460,7 @@ class Engine:
     ) -> bool:
         if source.name != "cninfo":
             return False
-        if bool(scfg.options.get("full_market", False)) and (tier is None or tier.use_registry):
+        if bool(scfg.options.get("full_market", False)):
             return True
         return concurrency > 1 and tier_stock_codes is not None
 
