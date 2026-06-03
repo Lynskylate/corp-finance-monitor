@@ -10,7 +10,7 @@
 ### 1.1 依赖安装
 
 ```bash
-# Python 后端 (uv)
+# Python 后端 (uv) — 安装所有依赖（含 dev group: ruff）
 uv sync
 
 # 前端
