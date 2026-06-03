@@ -110,16 +110,18 @@ class CninfoSource(AbstractSource):
             return refs
 
         stocks = registry.get_a_shares()
+        logger.info("Registry loaded: %d stocks total", len(stocks))
 
         if only_stock_codes:
             allowed = {code for code in only_stock_codes}
             stocks = [entry for entry in stocks if entry.stock_code in allowed]
+            logger.info("Filtered to %d stocks by only_stock_codes", len(stocks))
 
         limit = int(self.options.get("full_market_limit", 0) or 0)
         if limit:
             stocks = stocks[:limit]
 
-        for entry in stocks:
+        for idx, entry in enumerate(stocks, 1):
             kinds = self.options.get("kinds", ["annual", "semi", "q1", "q3"])
             wl = entry.to_watchlist_entry(kinds=kinds)
             stock = wl["stock"]
@@ -129,6 +131,13 @@ class CninfoSource(AbstractSource):
                 self._discover_single_stock(stock, org_id, kinds, since)
             )
 
+            if idx % 100 == 0:
+                logger.info(
+                    "Full-market discover progress: %d/%d stocks, %d refs so far",
+                    idx, len(stocks), len(refs),
+                )
+
+        logger.info("Full-market discover complete: %d stocks scanned, %d refs", len(stocks), len(refs))
         return refs
 
     def _discover_single_stock(
