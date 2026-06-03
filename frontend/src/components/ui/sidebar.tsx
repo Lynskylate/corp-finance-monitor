@@ -167,7 +167,7 @@ function Sidebar({
         data-sidebar="trigger"
         className={cn(
           'group-data-[collapsible=offcanvas]:w-0 group-data-[side=right]:border-l group-data-[side=left]:border-r',
-          'relative hidden h-svh w-[--sidebar-width] transition-[width] duration-200 ease-linear',
+          'relative h-svh w-[--sidebar-width] transition-[width] duration-200 ease-linear',
           'group-data-[collapsible=icon]:w-[--sidebar-width-icon]',
           variant === 'floating' || variant === 'inset'
             ? 'p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+theme(spacing.4))]'
