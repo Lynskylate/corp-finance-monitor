@@ -41,6 +41,7 @@ class DiskStorage(AbstractStorage):
             check_same_thread=False,
         )
         self._meta_db.row_factory = sqlite3.Row
+        self._meta_db.execute("PRAGMA journal_mode=WAL")
         self._meta_db.execute("""
             CREATE TABLE IF NOT EXISTS filings (
                 unique_key TEXT PRIMARY KEY,

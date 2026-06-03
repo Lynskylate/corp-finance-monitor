@@ -1,0 +1,8 @@
+apiVersion: deploy.lynskylate/v1alpha1
+kind: ProjectService
+service_name: corp-finance-monitor-scheduler
+dockerfile: Dockerfile
+internal_port: 8191
+healthcheck_path: /healthz
+exposure: none
+env_profile: corp-finance-monitor-backend
