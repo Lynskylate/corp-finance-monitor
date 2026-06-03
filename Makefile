@@ -6,6 +6,7 @@
 #   make format-check    Check formatting without writing
 #   make fix             Auto-fix lint + format (mutating — use before gate)
 #   make test            Run unit tests (excludes e2e)
+#   make test-quick      Fast local-only tests (no network, <1s)
 #   make test-scheduling Run scheduling/full_market targeted tests
 #   make gate            Full pre-push gate: lint + format-check + test
 #   make gate-full       Full gate including frontend (eslint + tsc + vite build)
@@ -32,7 +33,10 @@ UNIT_TEST_MODULES := $(filter-out tests.test_e2e_deployed,$(patsubst tests/test_
 # Scheduling/full_market targeted tests — covers the most review-intensive subsystem
 SCHEDULING_TESTS := tests.test_scheduling tests.test_scan_checkpoint tests.test_cninfo_full_market tests.test_engine_concurrency tests.test_stock_registry
 
-.PHONY: lint format format-check fix test test-scheduling test-e2e gate gate-full gate-scheduling pre-commit-install help
+# Quick tests — local-only, no network, fast (<1s)
+QUICK_TESTS := tests.test_cninfo_classification tests.test_release_contract tests.test_disk_storage_pagination tests.test_scan_checkpoint tests.test_stock_registry
+
+.PHONY: lint format format-check fix test test-quick test-scheduling test-e2e gate gate-full gate-scheduling pre-commit-install help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
@@ -56,6 +60,9 @@ fix: ## Auto-fix lint issues + format (mutating — run before gate)
 
 test: ## Run unit tests (excludes e2e which needs live service)
 	$(PYTHON) -m unittest $(UNIT_TEST_MODULES) -v
+
+test-quick: ## Fast local-only tests — no network, <1s
+	$(PYTHON) -m unittest $(QUICK_TESTS) -v
 
 test-scheduling: ## Run targeted tests for scheduling/full_market changes
 	$(PYTHON) -m unittest $(SCHEDULING_TESTS) -v
