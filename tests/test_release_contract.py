@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from typing import ClassVar
 
 import yaml
 
@@ -13,7 +14,7 @@ OPS = REPO_ROOT / "ops"
 
 
 class TestProjectServiceContracts(unittest.TestCase):
-    REQUIRED_KEYS = {
+    REQUIRED_KEYS: ClassVar[set[str]] = {
         "apiVersion",
         "kind",
         "service_name",

@@ -41,7 +41,7 @@ def _infer_exchange(code: str) -> str:
 class StockEntry:
     """单只股票的注册信息。"""
 
-    __slots__ = ("stock_code", "org_id", "name", "exchange", "category")
+    __slots__ = ("category", "exchange", "name", "org_id", "stock_code")
 
     def __init__(
         self,

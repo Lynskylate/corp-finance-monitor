@@ -6,9 +6,9 @@ from .wechat import WeChatNotifier
 
 __all__ = [
     "AbstractNotifier",
-    "NotifierResult",
-    "WebhookNotifier",
     "EmailNotifier",
-    "WeChatNotifier",
     "NotifierRegistry",
+    "NotifierResult",
+    "WeChatNotifier",
+    "WebhookNotifier",
 ]

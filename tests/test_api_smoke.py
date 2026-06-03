@@ -27,6 +27,7 @@ import tempfile
 import threading
 import time
 import unittest
+from contextlib import suppress
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
 
@@ -135,10 +136,8 @@ class _ServerBase(unittest.TestCase):
         cls._uvicorn_server.should_exit = True
         cls.thread.join(timeout=5)
         engine = cls.app.state.engine
-        try:
+        with suppress(Exception):
             engine.close()
-        except Exception:
-            pass
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     @staticmethod
@@ -166,7 +165,7 @@ class TestHealthAndNotFound(_ServerBase):
         self.assertEqual(body, {"ok": True})
 
     def test_unknown_route_404(self):
-        status, body = _http_get(self.base + "/api/unknown")
+        status, _body = _http_get(self.base + "/api/unknown")
         self.assertEqual(status, 404)
 
     def test_filing_detail_404(self):

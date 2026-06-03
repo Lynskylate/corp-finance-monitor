@@ -25,7 +25,7 @@ STOCK_LIST_URL = "https://www1.hkexnews.hk/ncms/script/eds/activestock_sehk_e.js
 class StockEntry:
     """单只股票的注册信息。"""
 
-    __slots__ = ("stock_code", "name", "exchange")
+    __slots__ = ("exchange", "name", "stock_code")
 
     def __init__(
         self,

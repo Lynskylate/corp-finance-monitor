@@ -4,7 +4,7 @@ import unittest
 from corp_finance_monitor.core.config import StorageConfig
 from corp_finance_monitor.core.model import FilingKind, FilingRef
 from corp_finance_monitor.storage.disk import DiskStorage
-from tests.conftest import temp_dir  # noqa: F401
+from tests.conftest import temp_dir
 
 
 class TestDiskStoragePagination(unittest.TestCase):

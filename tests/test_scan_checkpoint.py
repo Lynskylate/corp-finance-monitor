@@ -53,7 +53,7 @@ class _CheckpointSource(AbstractSource):
 
 
 class _FakeStockEntry:
-    __slots__ = ("stock_code", "org_id")
+    __slots__ = ("org_id", "stock_code")
 
     def __init__(self, stock_code, org_id):
         self.stock_code = stock_code

@@ -221,6 +221,7 @@ class EngineConcurrencyTestCase(unittest.TestCase):
                 for earlier, later in zip(
                     sorted(source.fetch_started),
                     sorted(source.fetch_started)[1:],
+                    strict=False,
                 )
             ]
             self.assertEqual(len(gaps), 2)

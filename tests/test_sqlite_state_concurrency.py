@@ -139,7 +139,7 @@ class TestConcurrentFilings(_StateStoreTestBase):
         def worker(i: int):
             try:
                 self.store.record_filing(ref, f"/tmp/x_{i}.pdf")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 errors.append(e)
 
         with ThreadPoolExecutor(max_workers=N_THREADS) as pool:
@@ -163,7 +163,7 @@ class TestConcurrentFilings(_StateStoreTestBase):
         def worker(i: int):
             try:
                 self.store.record_filing(_ref(i), f"/tmp/x_{i}.pdf")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 errors.append(e)
 
         with ThreadPoolExecutor(max_workers=N_THREADS) as pool:
@@ -187,7 +187,7 @@ class TestConcurrentFilings(_StateStoreTestBase):
             try:
                 while not stop.is_set():
                     self.assertTrue(self.store.has_filing(ref))
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 errors.append(e)
 
         threads = [threading.Thread(target=reader, args=(i,)) for i in range(N)]
@@ -199,7 +199,7 @@ class TestConcurrentFilings(_StateStoreTestBase):
             try:
                 for j in range(50):
                     self.store.record_filing(ref, f"/tmp/y_{i}_{j}.pdf")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 errors.append(e)
 
         with ThreadPoolExecutor(max_workers=4) as pool:
@@ -227,7 +227,7 @@ class TestConcurrentRuns(_StateStoreTestBase):
                     fetched=5,
                     failed=2,
                 )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 errors.append(e)
 
         with ThreadPoolExecutor(max_workers=N_THREADS) as pool:
@@ -276,7 +276,7 @@ class TestConcurrentSubscriptions(_StateStoreTestBase):
                 created = self.store.create_subscription(sub)
                 with lock:
                     ids.append(created.id)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 errors.append(e)
 
         with ThreadPoolExecutor(max_workers=8) as pool:

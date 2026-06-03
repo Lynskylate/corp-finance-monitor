@@ -57,12 +57,12 @@ class TestDeployedHealthAndAPI(unittest.TestCase):
     """Backend API smoke against the running compose stack."""
 
     def test_healthz(self):
-        status, headers, body = _json(*_http(BASE + "/healthz"))
+        status, _headers, body = _json(*_http(BASE + "/healthz"))
         self.assertEqual(status, 200)
         self.assertEqual(body, {"ok": True})
 
     def test_api_filings_list(self):
-        status, headers, body = _json(*_http(BASE + "/api/filings"))
+        status, _headers, body = _json(*_http(BASE + "/api/filings"))
         self.assertEqual(status, 200)
         self.assertIn("items", body)
         self.assertIn("total", body)
@@ -76,12 +76,12 @@ class TestDeployedHealthAndAPI(unittest.TestCase):
     def test_api_filings_with_source_filter(self):
         # The deployed instance may have real data; we just assert the
         # endpoint accepts the source query param and returns JSON.
-        status, headers, body = _json(*_http(BASE + "/api/filings?source=sse"))
+        status, _headers, body = _json(*_http(BASE + "/api/filings?source=sse"))
         self.assertEqual(status, 200)
         self.assertIn("items", body)
 
     def test_api_filings_with_limit_offset(self):
-        status, headers, body = _json(*_http(BASE + "/api/filings?limit=5&offset=0"))
+        status, _headers, body = _json(*_http(BASE + "/api/filings?limit=5&offset=0"))
         self.assertEqual(status, 200)
         self.assertIn("items", body)
         self.assertIn("limit", body)
@@ -197,7 +197,7 @@ class TestDeployedTailnetAccessibilityNote(unittest.TestCase):
         "tailnet HTTPS verification requires BASE_URL to be set to tailnet domain",
     )
     def test_https_healthz_via_tailnet(self):
-        status, headers, body = _json(*_http(BASE + "/healthz"))
+        status, _headers, body = _json(*_http(BASE + "/healthz"))
         self.assertEqual(status, 200)
         self.assertEqual(body, {"ok": True})
 
