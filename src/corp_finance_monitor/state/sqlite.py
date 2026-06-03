@@ -20,6 +20,7 @@ class SQLiteStateStore(AbstractStateStore):
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         self._conn = sqlite3.connect(self.path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
         with self._lock:
             self._conn.execute(
                 """
