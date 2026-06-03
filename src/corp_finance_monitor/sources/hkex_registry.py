@@ -168,6 +168,10 @@ class HKEXStockRegistry:
     def get_hk_stocks(self) -> list[StockEntry]:
         return self.get_all()
 
+    def get_stock_codes(self) -> list[str]:
+        """Return all stock codes via the generic registry interface."""
+        return [entry.stock_code for entry in self.get_all()]
+
     def count(self) -> int:
         if not self._conn:
             return 0
