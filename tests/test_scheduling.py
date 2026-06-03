@@ -76,6 +76,51 @@ class _FakeLookupRegistry:
         return self._entries.get(stock_code)
 
 
+class _FakeGenericRegistry:
+    """Registry that only exposes get_stock_codes(), not get_a_shares()."""
+
+    def __init__(self, codes):
+        self._codes = codes
+
+    def get_stock_codes(self):
+        return list(self._codes)
+
+
+class _GenericRegistrySource(AbstractSource):
+    """Non-cninfo registry-backed source using a generic (get_stock_codes-only) registry."""
+
+    def __init__(self, name, config):
+        super().__init__(name, config)
+        self.discover_calls = []
+        self._registry = _FakeGenericRegistry(
+            ["00700", "09988", "02318", "01299", "00941"]
+        )
+
+    def _get_registry(self):
+        return self._registry
+
+    def discover(self, watchlist=None, since=None, only_stock_codes=None):
+        codes = list(only_stock_codes or [])
+        self.discover_calls.append(codes)
+        refs = []
+        for code in codes:
+            refs.append(
+                FilingRef(
+                    source=self.name,
+                    source_id=f"{self.name}-{code}",
+                    stock_code=code,
+                    title=f"{code} filing",
+                    kind=FilingKind.ANNUAL,
+                    published_at="2025-01-01",
+                    url="",
+                )
+            )
+        return refs
+
+    def fetch(self, ref):
+        return Filing(ref=ref, content=b"%PDF-1.4\ngeneric\n")
+
+
 class _LoopTestEngine(Engine):
     def __init__(self, config, source_registry):
         super().__init__(config, source_registry)
@@ -171,6 +216,9 @@ class SchedulingEngineTestCase(unittest.TestCase):
                     watchlist=[
                         {"stock": "00700", "kinds": ["annual"]},
                         {"stock": "09988", "kinds": ["annual"]},
+                        {"stock": "02318", "kinds": ["annual"]},
+                        {"stock": "01299", "kinds": ["annual"]},
+                        {"stock": "00941", "kinds": ["annual"]},
                     ],
                 ),
             },
@@ -215,6 +263,36 @@ class SchedulingEngineTestCase(unittest.TestCase):
             self.assertEqual(stats["discovered"], 3)
             source = engine.sources["cninfo"]
             self.assertEqual(source.discover_only_codes[0], ["000725", "600519", "000858"])
+        finally:
+            engine.close()
+
+    def test_non_cninfo_registry_source_uses_batched_discover(self):
+        """Non-cninfo registry-backed source batches via get_stock_codes(), not watchlist."""
+        cfg = self._make_config()
+        # Configure hkex for full_market + batching
+        cfg.sources["hkex"].options = {
+            "full_market": True,
+            "full_market_batch_size": 2,
+        }
+        cfg.engine.concurrency = 3
+        # Tier "full" has use_registry=True; stocks must overlap hkex watchlist
+        cfg.scheduling.tiers[1] = SchedulingTierConfig(
+            name="full",
+            interval_minutes=720,
+            use_registry=True,
+            stocks=["00700", "09988", "02318", "01299", "00941"],
+        )
+        engine = Engine(cfg, {"cninfo": _RegistryBackedSource, "hkex": _GenericRegistrySource})
+        engine.initialize()
+        try:
+            stats = engine.run_once(tier="full", selected_sources=["hkex"])
+            self.assertEqual(stats["discovered"], 5)
+            hkex = engine.sources["hkex"]
+            # Engine batches stock codes into chunks of size 2
+            self.assertEqual(
+                hkex.discover_calls,
+                [["00700", "09988"], ["02318", "01299"], ["00941"]],
+            )
         finally:
             engine.close()
 
