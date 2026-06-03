@@ -180,7 +180,11 @@ class EngineResumeTestCase(unittest.TestCase):
         engine.close()
 
     def test_no_resume_scans_all_without_skip(self):
-        """run_once(resume=False) scans all stocks without skipping checked ones."""
+        """run_once(resume=False) still skips already-scanned stocks.
+
+        In the current design, the engine always skips done stocks.
+        To force a full rescan, clear scan_progress externally (e.g. via --reset).
+        """
         cfg = self._make_config()
         engine = Engine(cfg, {"cninfo": _CheckpointSource})
         engine.initialize()
@@ -191,15 +195,39 @@ class EngineResumeTestCase(unittest.TestCase):
         source._registry = _FakeRegistry(["000001", "000002"])
 
         stats = engine.run_once(resume=False)
+        # 000001 was already done, so only 000002 is discovered
         self.assertEqual(
             sorted(source.discovered_codes),
-            ["000001", "000002"],
+            ["000002"],
         )
         # Verify scan_progress was NOT cleared — clear is now explicit via --reset.
         # After the run, progress was written for both stocks, so count is at least 1.
         self.assertGreater(
             engine.state_store.count_scan_progress("cninfo")[0], 0,
         )
+        engine.close()
+
+    def test_default_is_incremental(self):
+        """Default run_once behavior is incremental — skips already-scanned stocks."""
+        cfg = self._make_config()
+        engine = Engine(cfg, {"cninfo": _CheckpointSource})
+        engine.initialize()
+
+        for code in ["000001", "000002", "000003"]:
+            engine.state_store.mark_scan_done("cninfo", code)
+
+        source = engine.sources["cninfo"]
+        source._registry = _FakeRegistry(
+            ["000001", "000002", "000003", "000004", "000005"]
+        )
+
+        # Default run_once() should skip done stocks
+        stats = engine.run_once()
+        self.assertEqual(
+            sorted(source.discovered_codes),
+            ["000004", "000005"],
+        )
+        self.assertEqual(stats["discovered"], 2)
         engine.close()
 
     def test_scan_progress_persists_across_runs(self):
@@ -213,15 +241,15 @@ class EngineResumeTestCase(unittest.TestCase):
             ["000001", "000002", "000003", "000004"]
         )
 
-        # Run 1: discover all 4 (batch_size=2, so 2 batches)
-        engine.run_once(resume=False)
+        # Run 1: no prior progress, discovers all 4
+        engine.run_once(resume=True)
         self.assertEqual(len(source.discovered_codes), 4)
 
         # All should be marked done now
         done, _ = engine.state_store.count_scan_progress("cninfo")
         self.assertEqual(done, 4)
 
-        # Run 2 with resume: all skipped
+        # Run 2: all skipped (incremental by default)
         source.discovered_codes = []
         engine.run_once(resume=True)
         self.assertEqual(source.discovered_codes, [])
@@ -239,7 +267,7 @@ class EngineResumeTestCase(unittest.TestCase):
             ["000001", "000002", "000003", "000004", "000005"]
         )
 
-        engine.run_once(resume=False)
+        engine.run_once(resume=True)
         done, _ = engine.state_store.count_scan_progress("cninfo")
         self.assertEqual(done, 5)
         engine.close()

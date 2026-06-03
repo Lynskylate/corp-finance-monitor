@@ -72,6 +72,7 @@ def cmd_run(args):
             print("Scan progress reset.")
         if cfg.engine.run_once:
             stats = engine.run_once(
+                resume=getattr(args, "resume", True),
                 tier=getattr(args, "tier", None),
             )
             print(f"\n{'='*50}")
@@ -94,6 +95,7 @@ def cmd_sync(args):
         stats = engine.run_once(
             selected_sources=args.source or None,
             since=since,
+            resume=getattr(args, "resume", True),
         )
         print(json.dumps({"stats": stats}, ensure_ascii=False, indent=2))
     finally:
@@ -272,6 +274,7 @@ def main():
     p_run = sub.add_parser("run", help="执行一轮发现-下载或持续轮询")
     p_run.add_argument("-c", "--config", default="config.yaml", help="Config path")
     p_run.add_argument("--tier", help="Run only one configured scheduling tier")
+    p_run.add_argument("--resume", action="store_true", default=True, help="Resume from last scan checkpoint (default: true)")
     p_run.add_argument("--reset", action="store_true", help="Clear scan progress checkpoint before running")
     p_run.add_argument("-v", "--verbose", action="store_true")
 
@@ -286,6 +289,7 @@ def main():
             "Use 'full' for a full sync ignoring date filters."
         ),
     )
+    p_sync.add_argument("--resume", action="store_true", default=True, help="Resume from last scan checkpoint (default: true)")
     p_sync.add_argument("--reset", action="store_true", help="Clear scan progress checkpoint before syncing")
     p_sync.add_argument("-v", "--verbose", action="store_true")
 

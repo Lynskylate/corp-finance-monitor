@@ -251,8 +251,8 @@ class Engine:
         if not stock_codes:
             return []
 
-        # Skip already-scanned stocks when resuming a full-market pass.
-        if use_full_market_progress and resume and self.state_store:
+        # Skip already-scanned stocks — default incremental behavior.
+        if use_full_market_progress and self.state_store:
             before = len(stock_codes)
             stock_codes = [
                 code for code in stock_codes
