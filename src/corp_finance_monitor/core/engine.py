@@ -228,12 +228,12 @@ class Engine:
 
         if (
             (tier is None or tier.use_registry)
-            and source.name == "cninfo"
+            and hasattr(source, "_get_registry")
             and bool(scfg.options.get("full_market", False))
         ):
             use_full_market_progress = True
 
-        if source.name == "cninfo" and tier_stock_codes == []:
+        if hasattr(source, "_get_registry") and tier_stock_codes == []:
             logger.info("Source [%s]: no matching stocks for tier, skipping", name)
             return []
 
@@ -481,7 +481,7 @@ class Engine:
     ) -> bool:
         return (
             concurrency > 1
-            and source.name == "cninfo"
+            and hasattr(source, "_get_registry")
             and bool(scfg.options.get("full_market", False))
         )
 
@@ -493,7 +493,7 @@ class Engine:
         tier: Optional[SchedulingTierConfig],
         tier_stock_codes: Optional[Sequence[str]],
     ) -> bool:
-        if source.name != "cninfo":
+        if not hasattr(source, "_get_registry"):
             return False
         if bool(scfg.options.get("full_market", False)):
             return True
@@ -505,13 +505,15 @@ class Engine:
             return []
         try:
             registry = source._get_registry()  # type: ignore[attr-defined]
-            stocks = registry.get_a_shares()
+            if hasattr(registry, "get_stock_codes"):
+                stock_codes = registry.get_stock_codes()
+            else:
+                stock_codes = [entry.stock_code for entry in registry.get_a_shares()]
         except Exception as exc:
             logger.error("Failed to load full-market stock registry: %s", exc)
             return []
 
         limit = int(source.options.get("full_market_limit", 0) or 0)
-        stock_codes = [entry.stock_code for entry in stocks]
         if limit:
             stock_codes = stock_codes[:limit]
         return stock_codes
