@@ -239,10 +239,12 @@ class Engine:
 
         if not use_batched_discover:
             try:
-                return source.discover(
+                refs = source.discover(
                     watchlist,
                     since=since,
                 )
+                self._log_discovered_refs(name, refs)
+                return refs
             except Exception as exc:
                 logger.error("Source [%s] discover failed: %s", name, exc)
                 return []
@@ -289,6 +291,7 @@ class Engine:
                 try:
                     batch_refs = source.discover(watchlist, since, batch)
                     refs.extend(batch_refs)
+                    self._log_discovered_refs(name, batch_refs)
                     scanned_count += len(batch)
                     if use_full_market_progress and self.state_store:
                         for code in batch:
@@ -327,6 +330,7 @@ class Engine:
                 try:
                     batch_refs = future.result()
                     refs.extend(batch_refs)
+                    self._log_discovered_refs(name, batch_refs)
                     scanned_count += len(batch)
                     if use_full_market_progress and self.state_store:
                         for code in batch:
@@ -358,23 +362,23 @@ class Engine:
         stats = {"discovered": len(refs), "fetched": 0, "failed": 0}
         for ref in refs:
             if self._is_already_fetched(ref):
-                logger.debug("  SKIP (already fetched): %s", ref.title)
+                self._log_filing_result("skip", ref, reason="already_fetched")
                 continue
 
-            logger.info("  FETCH: [%s] %s - %s", ref.stock_code, ref.title, ref.url or "")
             try:
                 filing = source.fetch(ref)
                 if filing is None:
-                    logger.warning("  FAILED: fetch returned None for %s", ref.title)
+                    self._log_filing_result("fetch_fail", ref, reason="fetch_returned_none")
                     stats["failed"] += 1
                     continue
 
                 stored_path = self.storage.store(filing)
                 self._record_state(ref, stored_path)
                 self._notify(ref, stored_path)
+                self._log_filing_result("fetch_ok", ref, stored_path=stored_path)
                 stats["fetched"] += 1
             except Exception as exc:
-                logger.error("  FAILED: %s - %s", ref.title, exc)
+                self._log_filing_result("fetch_fail", ref, reason=str(exc))
                 stats["failed"] += 1
 
             time.sleep(self.config.engine.fetch_delay_seconds)
@@ -414,24 +418,55 @@ class Engine:
         rate_limiter: RateLimiter,
     ) -> Dict[str, int]:
         if self._is_already_fetched(ref):
-            logger.debug("  SKIP (already fetched): %s", ref.title)
+            self._log_filing_result("skip", ref, reason="already_fetched")
             return {"fetched": 0, "failed": 0}
 
-        logger.info("  FETCH: [%s] %s - %s", ref.stock_code, ref.title, ref.url or "")
         try:
             rate_limiter.wait()
             filing = source.fetch(ref)
             if filing is None:
-                logger.warning("  FAILED: fetch returned None for %s", ref.title)
+                self._log_filing_result("fetch_fail", ref, reason="fetch_returned_none")
                 return {"fetched": 0, "failed": 1}
 
             stored_path = self.storage.store(filing)
             self._record_state(ref, stored_path)
             self._notify(ref, stored_path)
+            self._log_filing_result("fetch_ok", ref, stored_path=stored_path)
             return {"fetched": 1, "failed": 0}
         except Exception as exc:
-            logger.error("  FAILED: %s - %s", ref.title, exc)
+            self._log_filing_result("fetch_fail", ref, reason=str(exc))
             return {"fetched": 0, "failed": 1}
+
+    def _log_discovered_refs(self, source_name: str, refs: Sequence[FilingRef]) -> None:
+        for ref in refs:
+            logger.info(
+                "filing_event stage=discover result=found source=%s source_id=%s stock_code=%s title=%r published_at=%s url=%s",
+                source_name,
+                ref.source_id,
+                ref.stock_code,
+                ref.title,
+                ref.published_at or "",
+                ref.url or "",
+            )
+
+    def _log_filing_result(
+        self,
+        result: str,
+        ref: FilingRef,
+        reason: str = "",
+        stored_path: str = "",
+    ) -> None:
+        logger.info(
+            "filing_event stage=fetch result=%s source=%s source_id=%s stock_code=%s title=%r reason=%s stored_path=%s url=%s",
+            result,
+            ref.source,
+            ref.source_id,
+            ref.stock_code,
+            ref.title,
+            reason,
+            stored_path,
+            ref.url or "",
+        )
 
     @staticmethod
     def _chunked(items: Sequence[str], size: int) -> Iterable[List[str]]:

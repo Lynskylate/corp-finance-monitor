@@ -135,6 +135,29 @@ class _SerialSource(AbstractSource):
         return Filing(ref=ref, content=b"%PDF-1.4\nserial\n")
 
 
+class _LoggingSource(AbstractSource):
+    def discover(self, watchlist=None, since=None, only_stock_codes=None):
+        return [
+            FilingRef(
+                source="fake",
+                source_id="log-001",
+                stock_code="000001",
+                title="Log Filing",
+                kind=FilingKind.ANNUAL,
+                published_at="2025-01-01",
+                url="https://example.com/log-001.pdf",
+            )
+        ]
+
+    def fetch(self, ref):
+        return Filing(ref=ref, content=b"%PDF-1.4\nlog\n")
+
+
+class _NoneFetchSource(_LoggingSource):
+    def fetch(self, ref):
+        return None
+
+
 class EngineConcurrencyTestCase(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="cfm_engine_phase2_")
@@ -223,6 +246,58 @@ class EngineConcurrencyTestCase(unittest.TestCase):
             self.assertGreaterEqual(
                 source.fetch_started[2] - source.fetch_completed[1],
                 0.025,
+            )
+        finally:
+            engine.close()
+
+    def test_logs_per_filing_discover_and_fetch_success(self):
+        cfg = self._new_config("fake", concurrency=1, delay=0)
+        engine = Engine(cfg, {"fake": _LoggingSource})
+        engine.initialize()
+        try:
+            with self.assertLogs("cfm", level="INFO") as logs:
+                stats = engine.run_once()
+            self.assertEqual(stats, {"discovered": 1, "fetched": 1, "failed": 0})
+            joined = "\n".join(logs.output)
+            self.assertIn(
+                "filing_event stage=discover result=found source=fake source_id=log-001 stock_code=000001",
+                joined,
+            )
+            self.assertIn(
+                "filing_event stage=fetch result=fetch_ok source=fake source_id=log-001 stock_code=000001",
+                joined,
+            )
+        finally:
+            engine.close()
+
+    def test_logs_skip_when_filing_already_fetched(self):
+        cfg = self._new_config("fake", concurrency=1, delay=0)
+        engine = Engine(cfg, {"fake": _LoggingSource})
+        engine.initialize()
+        try:
+            first = engine.run_once()
+            self.assertEqual(first, {"discovered": 1, "fetched": 1, "failed": 0})
+            with self.assertLogs("cfm", level="INFO") as logs:
+                second = engine.run_once()
+            self.assertEqual(second, {"discovered": 1, "fetched": 0, "failed": 0})
+            self.assertIn(
+                "filing_event stage=fetch result=skip source=fake source_id=log-001 stock_code=000001",
+                "\n".join(logs.output),
+            )
+        finally:
+            engine.close()
+
+    def test_logs_fetch_fail_when_source_returns_none(self):
+        cfg = self._new_config("fake", concurrency=1, delay=0)
+        engine = Engine(cfg, {"fake": _NoneFetchSource})
+        engine.initialize()
+        try:
+            with self.assertLogs("cfm", level="INFO") as logs:
+                stats = engine.run_once()
+            self.assertEqual(stats, {"discovered": 1, "fetched": 0, "failed": 1})
+            self.assertIn(
+                "filing_event stage=fetch result=fetch_fail source=fake source_id=log-001 stock_code=000001 title='Log Filing' reason=fetch_returned_none",
+                "\n".join(logs.output),
             )
         finally:
             engine.close()
