@@ -308,11 +308,13 @@ class SchedulingEngineTestCase(unittest.TestCase):
             cfg, {"cninfo": _RegistryBackedSource, "hkex": _RegistryBackedSource}
         )
         engine.stop_after = 2
-        with patch(
-            "corp_finance_monitor.core.engine.time.monotonic", side_effect=[0, 0, 0, 0, 1, 1]
-        ), patch(
-            "corp_finance_monitor.core.engine.time.sleep", return_value=None
-        ), self.assertRaises(StopIteration):
+        with (
+            patch(
+                "corp_finance_monitor.core.engine.time.monotonic", side_effect=[0, 0, 0, 0, 1, 1]
+            ),
+            patch("corp_finance_monitor.core.engine.time.sleep", return_value=None),
+            self.assertRaises(StopIteration),
+        ):
             engine.run_loop()
         self.assertEqual(engine.run_calls, ["core", "full"])
 

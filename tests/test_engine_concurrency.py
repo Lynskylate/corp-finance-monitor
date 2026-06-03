@@ -74,6 +74,7 @@ class _TimingSource(AbstractSource):
         self.max_inflight = 0
         self._inflight = 0
         self._lock = threading.Lock()
+        self.fetch_sleep_seconds = 0.05
 
     def discover(self, watchlist=None, since=None, only_stock_codes=None):
         return [
@@ -95,7 +96,7 @@ class _TimingSource(AbstractSource):
             self._inflight += 1
             self.max_inflight = max(self.max_inflight, self._inflight)
         self.fetch_started.append(start)
-        time.sleep(0.05)
+        time.sleep(self.fetch_sleep_seconds)
         finish = time.monotonic()
         self.fetch_completed.append(finish)
         with self._lock:
@@ -212,6 +213,8 @@ class EngineConcurrencyTestCase(unittest.TestCase):
         engine = Engine(cfg, {"fake": _TimingSource})
         engine.initialize()
         try:
+            # Keep each fetch slightly slower than the limiter interval so overlap is deterministic.
+            engine.sources["fake"].fetch_sleep_seconds = 0.08
             stats = engine.run_once()
             source = engine.sources["fake"]
             self.assertEqual(stats, {"discovered": 3, "fetched": 3, "failed": 0})
