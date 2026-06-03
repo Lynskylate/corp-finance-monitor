@@ -8,6 +8,7 @@
 #   make test            Run unit tests (excludes e2e)
 #   make test-scheduling Run scheduling/full_market targeted tests
 #   make gate            Full pre-push gate: lint + format-check + test
+#   make gate-full       Full gate including frontend (eslint + tsc + vite build)
 #   make gate-scheduling Targeted gate for scheduling/full_market changes
 #   make pre-commit-install  Install git pre-commit hooks
 #
@@ -31,7 +32,7 @@ UNIT_TEST_MODULES := $(filter-out tests.test_e2e_deployed,$(patsubst tests/test_
 # Scheduling/full_market targeted tests — covers the most review-intensive subsystem
 SCHEDULING_TESTS := tests.test_scheduling tests.test_scan_checkpoint tests.test_cninfo_full_market tests.test_engine_concurrency tests.test_stock_registry
 
-.PHONY: lint format format-check fix test test-scheduling test-e2e gate gate-scheduling pre-commit-install help
+.PHONY: lint format format-check fix test test-scheduling test-e2e gate gate-full gate-scheduling pre-commit-install help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
@@ -73,6 +74,20 @@ gate: ## Full pre-push gate: lint + format-check + test
 	@echo "--- tests ---"
 	@$(PYTHON) -m unittest $(UNIT_TEST_MODULES) -v || (echo "❌ tests failed" && exit 1)
 	@echo "✅ gate passed — safe to push"
+
+gate-full: ## Full gate including frontend: lint + format-check + test + eslint + frontend build
+	@echo "=== Running full review gate (Python + Frontend) ==="
+	@echo "--- Python lint ---"
+	@$(UV) run ruff check $(SRC) $(TESTS) || (echo "❌ lint failed" && exit 1)
+	@echo "--- Python format check ---"
+	@$(UV) run ruff format --check $(SRC) $(TESTS) || (echo "❌ format check failed (run 'make format' to fix)" && exit 1)
+	@echo "--- Python tests ---"
+	@$(PYTHON) -m unittest $(UNIT_TEST_MODULES) -v || (echo "❌ tests failed" && exit 1)
+	@echo "--- Frontend lint (eslint) ---"
+	@cd frontend && npm run lint || (echo "❌ eslint failed" && exit 1)
+	@echo "--- Frontend build (tsc + vite) ---"
+	@cd frontend && npm run build || (echo "❌ frontend build failed" && exit 1)
+	@echo "✅ full gate passed (Python + Frontend) — ready for review"
 
 gate-scheduling: ## Targeted gate for scheduling/full_market changes
 	@echo "=== Running scheduling/full_market review gate ==="
