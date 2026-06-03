@@ -224,6 +224,10 @@ class CninfoStockRegistry:
     def get_a_shares(self) -> List[StockEntry]:
         return self.get_all(category="A股")
 
+    def get_stock_codes(self) -> List[str]:
+        """Return stock codes for all A-shares (generic registry interface)."""
+        return [entry.stock_code for entry in self.get_a_shares()]
+
     def count(self, exchange: Optional[str] = None) -> int:
         if not self._conn:
             return 0
