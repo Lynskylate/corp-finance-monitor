@@ -191,14 +191,16 @@ class SchedulingEngineTestCase(unittest.TestCase):
         finally:
             engine.close()
 
-    def test_non_cninfo_tier_filters_existing_watchlist(self):
+    def test_registry_source_skips_when_no_tier_matches(self):
+        """Registry-backed source with no matching tier stocks skips entirely."""
         engine = Engine(self._make_config(), {"cninfo": _RegistryBackedSource, "hkex": _RegistryBackedSource})
         engine.initialize()
         try:
             stats = engine.run_once(tier="core", selected_sources=["hkex"])
             self.assertEqual(stats["discovered"], 0)
             hkex = engine.sources["hkex"]
-            self.assertEqual(hkex.discover_watchlists[0], [])
+            # discover() is never called because tier has no matching stocks
+            self.assertEqual(hkex.discover_watchlists, [])
         finally:
             engine.close()
 
