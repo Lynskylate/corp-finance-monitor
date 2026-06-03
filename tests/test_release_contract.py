@@ -25,13 +25,14 @@ class TestProjectServiceContracts(unittest.TestCase):
         "env_profile",
     }
 
-    def test_two_service_contracts_exist(self):
+    def test_three_service_contracts_exist(self):
         contracts = sorted((OPS / "services").glob("*.yaml"))
         self.assertEqual(
             [path.name for path in contracts],
             [
                 "corp-finance-monitor-backend.yaml",
                 "corp-finance-monitor-frontend.yaml",
+                "corp-finance-monitor-scheduler.yaml",
             ],
         )
 
@@ -76,6 +77,7 @@ class TestReleaseWorkflow(unittest.TestCase):
             [
                 "corp-finance-monitor-backend",
                 "corp-finance-monitor-frontend",
+                "corp-finance-monitor-scheduler",
             ],
         )
 
