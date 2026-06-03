@@ -103,7 +103,35 @@ make gate-scheduling   # 仅检查 scheduling/full_market 相关模块
 make test-quick        # 快速本地测试（无网络，<1s）
 ```
 
-### 2.3 CI / PR Check（远程强制）
+### 2.3 Latest-Main Integrated Gate（任务收口前）
+
+分支上的检查通过并不等于最终合入 `main` 后仍然是绿的。每个代码类 task 在进入 `in_review` 之前，都必须在 **latest `main`** 上跑一次 integrated gate，确认没有格式漂移、flaky test 或主线集成回归。
+
+**标准收口动作：**
+
+```bash
+git checkout main
+git pull
+cd frontend && npm ci && cd ..
+make gate-full
+```
+
+如果实际交付是在独立 worktree 上完成，等价要求是：**在基于 latest `main` 的干净 worktree 中准备好依赖后运行 `make gate-full` 并贴结果**。
+
+**前置条件：**
+
+- Python 依赖已通过 `uv sync` 准备好
+- 如果是干净 worktree，前端依赖要先执行一次 `cd frontend && npm ci`
+
+**thread 中至少要贴这 3 项证据：**
+
+- latest `main` / latest-main worktree 上执行的命令
+- gate 结果（pass / fail + 关键输出）
+- 最终落到 `main` 的 commit SHA
+
+> 这一步是 task 收口动作，不是可选加分项。feature branch 自己绿，只能证明“局部改动可工作”；latest-main integrated gate 绿，才证明“最终交付可工作”。
+
+### 2.4 CI / PR Check（远程强制）
 
 每次向 `main`/`master` 提交 PR 时，CI 自动运行以下检查：
 
@@ -169,6 +197,12 @@ refactor/engine-concurrency
      git rebase origin/main
 
 6. 等待 review + CI 全部通过后合并
+
+7. 任务收口前，在 latest `main` 上跑 integrated gate
+   git checkout main
+   git pull
+   make gate-full
+   # 在 task thread 贴命令、结果、最终 main commit SHA
 ```
 
 ### 3.3 分支落后 main 的处理
