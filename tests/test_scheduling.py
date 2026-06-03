@@ -88,6 +88,21 @@ class _FakeGenericRegistry:
         return list(self._codes)
 
 
+class _FakeHKEXRegistry:
+    """Fake HKEX registry with both get_stock_codes() and get_hk_stocks()."""
+
+    def __init__(self, codes):
+        self._codes = codes
+
+    def get_stock_codes(self):
+        return list(self._codes)
+
+    def get_hk_stocks(self):
+        from corp_finance_monitor.sources.hkex_registry import StockEntry as SE
+
+        return [SE(stock_code=c, name=f"Stock {c}", exchange="SEHK") for c in self._codes]
+
+
 class _GenericRegistrySource(AbstractSource):
     """Non-cninfo registry-backed source using a generic (get_stock_codes-only) registry."""
 
@@ -290,6 +305,51 @@ class SchedulingEngineTestCase(unittest.TestCase):
             )
         finally:
             engine.close()
+
+    def test_hkex_full_market_discover_with_batched_codes(self):
+        """HKEX source _discover_full_market filters by only_stock_codes from engine batching."""
+        from corp_finance_monitor.sources.hkex import HKEXSource
+        from corp_finance_monitor.sources.hkex_registry import StockEntry as HKEXStockEntry
+
+        cfg = self._make_config()
+        cfg.sources["hkex"].options = {
+            "full_market": True,
+            "full_market_batch_size": 2,
+            "kinds": ["annual"],
+        }
+        hkex = HKEXSource("hkex", cfg.sources["hkex"])
+        # Mock registry to avoid network
+        codes = ["00700", "09988", "02318"]
+        fake_registry = _FakeHKEXRegistry(codes)
+        hkex._registry = fake_registry
+        # Patch _discover_single_stock to avoid HTTP calls
+        def _fake_discover_single(stock, kinds, since=None):
+            return [
+                FilingRef(
+                    source="hkex",
+                    source_id=f"hkex-{stock}",
+                    stock_code=stock,
+                    title=f"{stock} annual",
+                    kind=FilingKind.ANNUAL,
+                    published_at="2025-01-01",
+                    url="",
+                )
+            ]
+
+        hkex._discover_single_stock = _fake_discover_single
+        # Simulate engine batching: call discover with a batch of codes
+        refs = hkex.discover(
+            watchlist=[],
+            since=None,
+            only_stock_codes=["00700", "09988"],
+        )
+        self.assertEqual(len(refs), 2)
+        self.assertEqual(
+            [r.stock_code for r in refs],
+            ["00700", "09988"],
+        )
+        # Registry's get_stock_codes() returns all codes
+        self.assertEqual(fake_registry.get_stock_codes(), codes)
 
     def test_disclosure_window_applies_smallest_multiplier(self):
         engine = Engine(
