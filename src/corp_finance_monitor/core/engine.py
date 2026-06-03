@@ -1,7 +1,6 @@
 from __future__ import annotations
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 import logging
-import os
 import threading
 import time
 from datetime import datetime
@@ -571,45 +570,6 @@ class Engine:
                 stats = self.run_once(tier=tier_item.name)
                 logger.info("Tier [%s] round complete: %s", tier_item.name, stats)
                 next_due[tier_item.name] = time.monotonic() + self._tier_interval_seconds(tier_item)
-
-    def backfill(self) -> Dict[str, int]:
-        """
-        一次性回填历史数据：
-        对 file_size=0 的记录，从磁盘读取本地文件大小并更新。
-
-        URL 在首次 discover 时已持久化到 meta.db；如有缺失，
-        下一轮正常 sync 会自然补全（discover 返回的 ref 带 url）。
-        不再通过远程 API 全量 re-discover 来补 url，避免长时间阻塞。
-
-        返回统计: {file_size_updated}
-        """
-        stats = {"file_size_updated": 0}
-
-        if not (self.storage and hasattr(self.storage, "_meta_db") and self.storage._meta_db):
-            logger.warning("Backfill: no meta_db available on storage, skipping")
-            return stats
-
-        logger.info("Backfill: updating file_size from local disk...")
-        with self.storage._lock:
-            rows = self.storage._meta_db.execute(
-                "SELECT unique_key, stored_path FROM filings WHERE file_size = 0 OR file_size IS NULL"
-            ).fetchall()
-
-        for row in rows:
-            stored_path = row["stored_path"]
-            if stored_path and os.path.exists(stored_path):
-                size = os.path.getsize(stored_path)
-                if size > 0:
-                    with self.storage._lock:
-                        self.storage._meta_db.execute(
-                            "UPDATE filings SET file_size = ? WHERE unique_key = ?",
-                            (size, row["unique_key"]),
-                        )
-                    self.storage._meta_db.commit()
-                    stats["file_size_updated"] += 1
-
-        logger.info("Backfill: updated file_size for %d record(s)", stats["file_size_updated"])
-        return stats
 
     def close(self):
         for source in self.sources.values():

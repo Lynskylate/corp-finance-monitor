@@ -240,18 +240,6 @@ def create_app(config: Config, source_registry: Dict[str, type]) -> FastAPI:
             raise HTTPException(status_code=404, detail="subscription_not_found")
         return {"ok": True}
 
-    @app.post("/api/backfill")
-    async def backfill():
-        if app.state.run_lock.locked():
-            raise HTTPException(status_code=409, detail="sync_already_running")
-        async with app.state.run_lock:
-            loop = asyncio.get_event_loop()
-            stats = await loop.run_in_executor(
-                app.state.executor,
-                lambda: engine.backfill(),
-            )
-        return {"stats": stats}
-
     return app
 
 

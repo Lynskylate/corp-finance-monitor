@@ -100,12 +100,6 @@ export async function triggerSync(params?: {
   )
 }
 
-export async function triggerBackfill() {
-  return fetchJson<{ stats: { file_size_updated: number } }>(
-    '/backfill',
-    { method: 'POST' },
-  )
-}
 
 function sortFilingsByNewest(items: FilingItem[]) {
   return [...items].sort((left, right) => {

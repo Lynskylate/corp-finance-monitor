@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, CheckCircle2, DatabaseZap, Loader2, Play, RefreshCw, XCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Loader2, Play, RefreshCw, XCircle } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { listRuns, triggerSync, triggerBackfill } from '@/features/filings/api'
+import { listRuns, triggerSync } from '@/features/filings/api'
 import { formatDateTime } from '@/lib/format'
 
 export function SyncStatusPanel() {
@@ -27,15 +27,6 @@ export function SyncStatusPanel() {
     },
   })
 
-  const backfillMutation = useMutation({
-    mutationFn: () => triggerBackfill(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['latest-filings'] })
-      queryClient.invalidateQueries({ queryKey: ['stock-filings'] })
-      queryClient.invalidateQueries({ queryKey: ['stats'] })
-    },
-  })
-
   const runs = runsQuery.data?.items ?? []
 
   return (
@@ -45,25 +36,13 @@ export function SyncStatusPanel() {
           <div>
             <CardTitle>采集状态</CardTitle>
             <CardDescription>
-              查看最近的采集运行记录，手动触发同步，或回填历史数据的链接和文件大小。
+              查看最近的采集运行记录，手动触发同步。
             </CardDescription>
           </div>
           <div className="flex gap-2 shrink-0">
             <Button
-              onClick={() => backfillMutation.mutate()}
-              disabled={backfillMutation.isPending || syncMutation.isPending}
-              variant="outline"
-            >
-              {backfillMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <DatabaseZap className="h-4 w-4" />
-              )}
-              {backfillMutation.isPending ? '回填中...' : '回填数据'}
-            </Button>
-            <Button
               onClick={() => syncMutation.mutate()}
-              disabled={syncMutation.isPending || backfillMutation.isPending}
+              disabled={syncMutation.isPending}
             >
               {syncMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -90,20 +69,6 @@ export function SyncStatusPanel() {
             同步完成：发现 {syncMutation.data?.stats.discovered ?? 0} 条，
             下载 {syncMutation.data?.stats.fetched ?? 0} 条，
             失败 {syncMutation.data?.stats.failed ?? 0} 条。
-          </div>
-        )}
-
-        {backfillMutation.isSuccess && (
-          <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            回填完成：文件大小更新 {backfillMutation.data?.stats.file_size_updated ?? 0} 条。
-          </div>
-        )}
-
-        {backfillMutation.isError && (
-          <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
-            <XCircle className="h-4 w-4 shrink-0" />
-            回填失败：{backfillMutation.error instanceof Error ? backfillMutation.error.message : '未知错误'}
           </div>
         )}
       </CardHeader>
