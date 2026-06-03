@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
@@ -10,22 +11,22 @@ import yaml
 class SourceConfig:
     name: str
     enabled: bool = True
-    options: Dict[str, Any] = field(default_factory=dict)
-    watchlist: List[Dict[str, Any]] = field(default_factory=list)
+    options: dict[str, Any] = field(default_factory=dict)
+    watchlist: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
 class StorageConfig:
     backend: str = "disk"
     base_dir: str = ""
-    options: Dict[str, Any] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class StateStoreConfig:
     backend: str = "sqlite"
     path: str = ""
-    options: Dict[str, Any] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -40,20 +41,20 @@ class EngineConfig:
 class SchedulingTierConfig:
     name: str
     interval_minutes: int
-    stocks: List[str] = field(default_factory=list)
+    stocks: list[str] = field(default_factory=list)
     use_registry: bool = False
 
 
 @dataclass
 class DisclosureWindowConfig:
-    months: List[int] = field(default_factory=list)
+    months: list[int] = field(default_factory=list)
     multiplier: float = 1.0
 
 
 @dataclass
 class SchedulingConfig:
-    tiers: List[SchedulingTierConfig] = field(default_factory=list)
-    disclosure_windows: List[DisclosureWindowConfig] = field(default_factory=list)
+    tiers: list[SchedulingTierConfig] = field(default_factory=list)
+    disclosure_windows: list[DisclosureWindowConfig] = field(default_factory=list)
 
 
 @dataclass
@@ -65,7 +66,7 @@ class APIConfig:
 
 @dataclass
 class Config:
-    sources: Dict[str, SourceConfig] = field(default_factory=dict)
+    sources: dict[str, SourceConfig] = field(default_factory=dict)
     storage: StorageConfig = field(default_factory=StorageConfig)
     state_store: StateStoreConfig = field(default_factory=StateStoreConfig)
     engine: EngineConfig = field(default_factory=EngineConfig)
@@ -73,7 +74,7 @@ class Config:
     api: APIConfig = field(default_factory=APIConfig)
 
     @classmethod
-    def from_file(cls, path: str) -> "Config":
+    def from_file(cls, path: str) -> Config:
         path = os.path.abspath(path)
         base_dir = os.path.dirname(path)
         with open(path) as f:
@@ -116,7 +117,7 @@ class Config:
         return cfg
 
     @classmethod
-    def default(cls) -> "Config":
+    def default(cls) -> Config:
         return cls(
             storage=StorageConfig(backend="disk", base_dir="./data"),
             state_store=StateStoreConfig(
@@ -130,8 +131,11 @@ class Config:
                 "cninfo": SourceConfig(
                     name="cninfo",
                     watchlist=[
-                        {"stock": "000725", "org_id": "gssz0000725",
-                         "kinds": ["annual", "semi", "q1", "q3"]},
+                        {
+                            "stock": "000725",
+                            "org_id": "gssz0000725",
+                            "kinds": ["annual", "semi", "q1", "q3"],
+                        },
                     ],
                 ),
             },
@@ -146,7 +150,7 @@ def _resolve_path(config_dir: str, value: str) -> str:
     return os.path.abspath(os.path.join(config_dir, value))
 
 
-def _parse_scheduling(raw: Optional[Dict[str, Any]]) -> SchedulingConfig:
+def _parse_scheduling(raw: dict[str, Any] | None) -> SchedulingConfig:
     raw = raw or {}
     tiers = [
         SchedulingTierConfig(

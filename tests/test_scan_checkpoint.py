@@ -1,9 +1,9 @@
 """Tests for Phase 3: scan checkpoint/resume and progress persistence."""
+
 import os
 import shutil
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
 
 from corp_finance_monitor.core.config import (
     Config,
@@ -166,9 +166,7 @@ class EngineResumeTestCase(unittest.TestCase):
 
         # Set up fake registry with 5 stocks
         source = engine.sources["cninfo"]
-        source._registry = _FakeRegistry(
-            ["000001", "000002", "000003", "000004", "000005"]
-        )
+        source._registry = _FakeRegistry(["000001", "000002", "000003", "000004", "000005"])
 
         stats = engine.run_once(resume=True)
         # Only 000004 and 000005 should be discovered
@@ -194,7 +192,7 @@ class EngineResumeTestCase(unittest.TestCase):
         source = engine.sources["cninfo"]
         source._registry = _FakeRegistry(["000001", "000002"])
 
-        stats = engine.run_once(resume=False)
+        _ = engine.run_once(resume=False)
         # 000001 was already done, so only 000002 is discovered
         self.assertEqual(
             sorted(source.discovered_codes),
@@ -203,7 +201,8 @@ class EngineResumeTestCase(unittest.TestCase):
         # Verify scan_progress was NOT cleared — clear is now explicit via --reset.
         # After the run, progress was written for both stocks, so count is at least 1.
         self.assertGreater(
-            engine.state_store.count_scan_progress("cninfo")[0], 0,
+            engine.state_store.count_scan_progress("cninfo")[0],
+            0,
         )
         engine.close()
 
@@ -217,9 +216,7 @@ class EngineResumeTestCase(unittest.TestCase):
             engine.state_store.mark_scan_done("cninfo", code)
 
         source = engine.sources["cninfo"]
-        source._registry = _FakeRegistry(
-            ["000001", "000002", "000003", "000004", "000005"]
-        )
+        source._registry = _FakeRegistry(["000001", "000002", "000003", "000004", "000005"])
 
         # Default run_once() should skip done stocks
         stats = engine.run_once()
@@ -237,9 +234,7 @@ class EngineResumeTestCase(unittest.TestCase):
         engine.initialize()
 
         source = engine.sources["cninfo"]
-        source._registry = _FakeRegistry(
-            ["000001", "000002", "000003", "000004"]
-        )
+        source._registry = _FakeRegistry(["000001", "000002", "000003", "000004"])
 
         # Run 1: no prior progress, discovers all 4
         engine.run_once(resume=True)
@@ -263,9 +258,7 @@ class EngineResumeTestCase(unittest.TestCase):
         engine.initialize()
 
         source = engine.sources["cninfo"]
-        source._registry = _FakeRegistry(
-            ["000001", "000002", "000003", "000004", "000005"]
-        )
+        source._registry = _FakeRegistry(["000001", "000002", "000003", "000004", "000005"])
 
         engine.run_once(resume=True)
         done, _ = engine.state_store.count_scan_progress("cninfo")

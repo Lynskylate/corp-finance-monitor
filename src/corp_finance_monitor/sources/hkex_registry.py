@@ -6,6 +6,7 @@ HKEX Stock Registry — 自动获取并缓存港股全量股票列表。
 
 本地缓存: data/.cfm_state/hkex_stocks.db (SQLite)
 """
+
 from __future__ import annotations
 
 import logging
@@ -13,7 +14,6 @@ import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
-from typing import List, Optional
 
 from .base import http_get
 
@@ -37,7 +37,7 @@ class StockEntry:
         self.name = name
         self.exchange = exchange
 
-    def to_watchlist_entry(self, kinds: Optional[List[str]] = None) -> dict:
+    def to_watchlist_entry(self, kinds: list[str] | None = None) -> dict:
         entry: dict = {"stock": self.stock_code}
         if kinds:
             entry["kinds"] = kinds
@@ -54,7 +54,7 @@ class HKEXStockRegistry:
         self._cache_dir = cache_dir
         self._ttl_hours = ttl_hours
         self._db_path = os.path.join(cache_dir, "hkex_stocks.db")
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: sqlite3.Connection | None = None
         self._lock = threading.Lock()
 
     def initialize(self) -> None:
@@ -90,9 +90,7 @@ class HKEXStockRegistry:
         if not self._conn:
             return False
         with self._lock:
-            row = self._conn.execute(
-                "SELECT MAX(updated_at) AS latest FROM stocks"
-            ).fetchone()
+            row = self._conn.execute("SELECT MAX(updated_at) AS latest FROM stocks").fetchone()
         if not row or not row["latest"]:
             return False
         try:
@@ -150,7 +148,7 @@ class HKEXStockRegistry:
         )
         return count
 
-    def get_all(self) -> List[StockEntry]:
+    def get_all(self) -> list[StockEntry]:
         if not self._conn:
             return []
         with self._lock:
@@ -167,7 +165,7 @@ class HKEXStockRegistry:
             for row in rows
         ]
 
-    def get_hk_stocks(self) -> List[StockEntry]:
+    def get_hk_stocks(self) -> list[StockEntry]:
         return self.get_all()
 
     def count(self) -> int:
@@ -177,7 +175,7 @@ class HKEXStockRegistry:
             row = self._conn.execute("SELECT COUNT(*) FROM stocks").fetchone()
         return int(row[0]) if row else 0
 
-    def lookup(self, stock_code: str) -> Optional[StockEntry]:
+    def lookup(self, stock_code: str) -> StockEntry | None:
         if not self._conn:
             return None
         with self._lock:

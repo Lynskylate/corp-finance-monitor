@@ -1,7 +1,7 @@
 """HTTP工具函数和常量，供各source实现复用"""
+
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 import requests
 
@@ -18,30 +18,30 @@ MAX_RETRIES = 3
 CN_TZ = timezone(timedelta(hours=8))
 
 
-def http_get(url: str, headers: Optional[dict] = None, **kwargs) -> requests.Response:
+def http_get(url: str, headers: dict | None = None, **kwargs) -> requests.Response:
     h = {**HEADERS, **(headers or {})}
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             resp = requests.get(url, headers=h, timeout=TIMEOUT, **kwargs)
             resp.raise_for_status()
             return resp
-        except requests.RequestException as e:
+        except requests.RequestException:
             if attempt < MAX_RETRIES:
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
             else:
                 raise
 
 
-def http_post(url: str, data: dict, headers: Optional[dict] = None, **kwargs) -> requests.Response:
+def http_post(url: str, data: dict, headers: dict | None = None, **kwargs) -> requests.Response:
     h = {**HEADERS, **(headers or {})}
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             resp = requests.post(url, headers=h, data=data, timeout=TIMEOUT, **kwargs)
             resp.raise_for_status()
             return resp
-        except requests.RequestException as e:
+        except requests.RequestException:
             if attempt < MAX_RETRIES:
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
             else:
                 raise
 

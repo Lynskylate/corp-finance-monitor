@@ -8,7 +8,6 @@ from typing import Any
 
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[2]
 VALID_EXPOSURES = {"none", "tailscale", "envoy"}
 
@@ -41,11 +40,12 @@ def load_service(path: Path) -> dict[str, Any]:
         raise ValueError(f"{path} references missing dockerfile: {dockerfile}")
     context = dockerfile.parent.relative_to(ROOT)
     data["context"] = "." if str(context) == "." else str(context)
-    owner = (os.environ.get("GHCR_OWNER") or os.environ.get("GITHUB_REPOSITORY_OWNER") or "lynskylate").lower()
     tencent_registry = os.environ.get("TENCENT_CCR_REGISTRY") or "ccr.ccs.tencentyun.com"
     tencent_prefix = os.environ.get("TENCENT_CCR_PREFIX") or "fin-monitor"
     data["image_repository"] = f"{tencent_registry}/{tencent_prefix}/{data['service_name']}"
-    data["build_args"] = "VITE_API_BASE_URL=/api" if data["service_name"].endswith("-frontend") else ""
+    data["build_args"] = (
+        "VITE_API_BASE_URL=/api" if data["service_name"].endswith("-frontend") else ""
+    )
     data["contract_path"] = str(path.relative_to(ROOT))
     return data
 

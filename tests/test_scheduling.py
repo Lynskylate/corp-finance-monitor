@@ -1,18 +1,17 @@
 """Tests for Phase 5: scheduling tiers, disclosure windows, and tier-aware runs."""
+
 import os
 import shutil
 import tempfile
-import threading
 import unittest
 from unittest.mock import patch
 
-from tests.conftest import SRC  # noqa: F401
 from corp_finance_monitor.core.config import (
     Config,
+    DisclosureWindowConfig,
     EngineConfig,
     SchedulingConfig,
     SchedulingTierConfig,
-    DisclosureWindowConfig,
     SourceConfig,
     StateStoreConfig,
     StorageConfig,
@@ -21,6 +20,7 @@ from corp_finance_monitor.core.engine import Engine
 from corp_finance_monitor.core.model import Filing, FilingKind, FilingRef
 from corp_finance_monitor.core.source import AbstractSource
 from corp_finance_monitor.sources.stock_registry import StockEntry
+from tests.conftest import SRC  # noqa: F401
 
 
 class _RegistryBackedSource(AbstractSource):
@@ -41,7 +41,9 @@ class _RegistryBackedSource(AbstractSource):
 
     def discover(self, watchlist=None, since=None, only_stock_codes=None):
         self.discover_watchlists.append(list(watchlist or []))
-        self.discover_only_codes.append(None if only_stock_codes is None else list(only_stock_codes))
+        self.discover_only_codes.append(
+            None if only_stock_codes is None else list(only_stock_codes)
+        )
         refs = []
         if only_stock_codes:
             stock_codes = list(only_stock_codes)
@@ -93,9 +95,7 @@ class _GenericRegistrySource(AbstractSource):
         super().__init__(name, config)
         self.discover_calls = []
         self.discover_watchlists = []
-        self._registry = _FakeGenericRegistry(
-            ["00700", "09988", "02318", "01299", "00941"]
-        )
+        self._registry = _FakeGenericRegistry(["00700", "09988", "02318", "01299", "00941"])
 
     def _get_registry(self):
         return self._registry
@@ -224,7 +224,9 @@ class SchedulingEngineTestCase(unittest.TestCase):
         )
 
     def test_core_tier_uses_registry_backed_watchlist_for_cninfo(self):
-        engine = Engine(self._make_config(), {"cninfo": _RegistryBackedSource, "hkex": _RegistryBackedSource})
+        engine = Engine(
+            self._make_config(), {"cninfo": _RegistryBackedSource, "hkex": _RegistryBackedSource}
+        )
         engine.initialize()
         try:
             stats = engine.run_once(tier="core")
@@ -240,7 +242,9 @@ class SchedulingEngineTestCase(unittest.TestCase):
 
     def test_registry_source_skips_when_no_tier_matches(self):
         """Registry-backed source with no matching tier stocks skips entirely."""
-        engine = Engine(self._make_config(), {"cninfo": _RegistryBackedSource, "hkex": _RegistryBackedSource})
+        engine = Engine(
+            self._make_config(), {"cninfo": _RegistryBackedSource, "hkex": _RegistryBackedSource}
+        )
         engine.initialize()
         try:
             stats = engine.run_once(tier="core", selected_sources=["hkex"])
@@ -288,15 +292,25 @@ class SchedulingEngineTestCase(unittest.TestCase):
             engine.close()
 
     def test_disclosure_window_applies_smallest_multiplier(self):
-        engine = Engine(self._make_config(), {"cninfo": _RegistryBackedSource, "hkex": _RegistryBackedSource})
-        self.assertEqual(engine._tier_interval_seconds(engine.config.scheduling.tiers[0], month=2), 1800)
-        self.assertEqual(engine._tier_interval_seconds(engine.config.scheduling.tiers[1], month=6), 43200)
+        engine = Engine(
+            self._make_config(), {"cninfo": _RegistryBackedSource, "hkex": _RegistryBackedSource}
+        )
+        self.assertEqual(
+            engine._tier_interval_seconds(engine.config.scheduling.tiers[0], month=2), 1800
+        )
+        self.assertEqual(
+            engine._tier_interval_seconds(engine.config.scheduling.tiers[1], month=6), 43200
+        )
 
     def test_run_loop_cycles_due_tiers(self):
         cfg = self._make_config()
-        engine = _LoopTestEngine(cfg, {"cninfo": _RegistryBackedSource, "hkex": _RegistryBackedSource})
+        engine = _LoopTestEngine(
+            cfg, {"cninfo": _RegistryBackedSource, "hkex": _RegistryBackedSource}
+        )
         engine.stop_after = 2
-        with patch("corp_finance_monitor.core.engine.time.monotonic", side_effect=[0, 0, 0, 0, 1, 1]):
+        with patch(
+            "corp_finance_monitor.core.engine.time.monotonic", side_effect=[0, 0, 0, 0, 1, 1]
+        ):
             with patch("corp_finance_monitor.core.engine.time.sleep", return_value=None):
                 with self.assertRaises(StopIteration):
                     engine.run_loop()

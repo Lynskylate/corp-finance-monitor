@@ -4,10 +4,11 @@ Abstract notifier — base class for all delivery backends.
 Each notifier handles one delivery channel (webhook, email, wechat, etc.).
 The Engine calls NotifierRegistry.dispatch() after each successful fetch.
 """
+
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 from corp_finance_monitor.core.model import FilingRef, Subscription
 
@@ -15,10 +16,11 @@ from corp_finance_monitor.core.model import FilingRef, Subscription
 @dataclass
 class NotifierResult:
     """Result of a single notification attempt."""
+
     success: bool
-    channel: str          # e.g. "webhook", "email", "wechat"
-    target: str           # e.g. URL, email address
-    message: str = ""     # Human-readable status or error
+    channel: str  # e.g. "webhook", "email", "wechat"
+    target: str  # e.g. URL, email address
+    message: str = ""  # Human-readable status or error
     status_code: int = 0  # HTTP status for webhook, etc.
 
 
@@ -47,7 +49,7 @@ class AbstractNotifier(ABC):
         self,
         subscription: Subscription,
         ref: FilingRef,
-        stored_path: Optional[str] = None,
+        stored_path: str | None = None,
     ) -> NotifierResult:
         """
         Send a notification for a newly fetched filing.

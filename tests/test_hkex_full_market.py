@@ -1,4 +1,5 @@
 """Tests for HKEXSource full_market mode."""
+
 import json
 import tempfile
 import unittest
@@ -40,15 +41,17 @@ SINGLE_STOCK = [{"c": "00700", "i": 700, "e": "0700", "n": "TENCENT"}]
 
 def _hkex_search_response(news_id="12345", title="Annual Report 2024", date="15/03/2025"):
     return {
-        "result": json.dumps([
-            {
-                "NEWS_ID": news_id,
-                "TITLE": title,
-                "FILE_LINK": "/final/2025/http://example.com/file.pdf",
-                "DATE_TIME": f"{date} 16:30",
-                "STOCK_NAME": "TENCENT",
-            }
-        ]),
+        "result": json.dumps(
+            [
+                {
+                    "NEWS_ID": news_id,
+                    "TITLE": title,
+                    "FILE_LINK": "/final/2025/http://example.com/file.pdf",
+                    "DATE_TIME": f"{date} 16:30",
+                    "STOCK_NAME": "TENCENT",
+                }
+            ]
+        ),
     }
 
 
@@ -69,8 +72,10 @@ class TestHKEXSourceFullMarket(unittest.TestCase):
             }
         )
 
-        with patch("corp_finance_monitor.sources.hkex_registry.http_get") as m_reg, \
-             patch("corp_finance_monitor.sources.hkex.http_get") as m_hkex:
+        with (
+            patch("corp_finance_monitor.sources.hkex_registry.http_get") as m_reg,
+            patch("corp_finance_monitor.sources.hkex.http_get") as m_hkex,
+        ):
             # First call: _fetch_stock_id fetches from stock list URL
             # Second call: search API
             def hkex_get(url, **kwargs):
@@ -99,8 +104,10 @@ class TestHKEXSourceFullMarket(unittest.TestCase):
             }
         )
 
-        with patch("corp_finance_monitor.sources.hkex_registry.http_get") as m_reg, \
-             patch("corp_finance_monitor.sources.hkex.http_get") as m_hkex:
+        with (
+            patch("corp_finance_monitor.sources.hkex_registry.http_get") as m_reg,
+            patch("corp_finance_monitor.sources.hkex.http_get") as m_hkex,
+        ):
             m_reg.return_value = _mock_response(SAMPLE_STOCKS)
 
             def hkex_get(url, **kwargs):
@@ -124,8 +131,10 @@ class TestHKEXSourceFullMarket(unittest.TestCase):
             }
         )
 
-        with patch("corp_finance_monitor.sources.hkex_registry.http_get") as m_reg, \
-             patch("corp_finance_monitor.sources.hkex.http_get") as m_hkex:
+        with (
+            patch("corp_finance_monitor.sources.hkex_registry.http_get") as m_reg,
+            patch("corp_finance_monitor.sources.hkex.http_get") as m_hkex,
+        ):
             m_reg.return_value = _mock_response(SAMPLE_STOCKS)
 
             def hkex_get(url, **kwargs):
@@ -167,8 +176,10 @@ class TestHKEXSourceFullMarket(unittest.TestCase):
             watchlist=[{"stock": "00001", "kinds": ["annual"]}],
         )
 
-        with patch("corp_finance_monitor.sources.hkex_registry.http_get") as m_reg, \
-             patch("corp_finance_monitor.sources.hkex.http_get") as m_hkex:
+        with (
+            patch("corp_finance_monitor.sources.hkex_registry.http_get") as m_reg,
+            patch("corp_finance_monitor.sources.hkex.http_get") as m_hkex,
+        ):
             m_reg.return_value = _mock_response([{"c": "00005", "i": 5, "e": "0005", "n": "HSBC"}])
 
             def hkex_get(url, **kwargs):
@@ -212,6 +223,7 @@ class TestHKEXSourceFullMarket(unittest.TestCase):
         )
 
         with patch("corp_finance_monitor.sources.hkex.http_get") as m:
+
             def hkex_get(url, **kwargs):
                 if "activestock" in url:
                     return _mock_response(SINGLE_STOCK)
@@ -232,15 +244,14 @@ class TestHKEXSourceFullMarket(unittest.TestCase):
         )
 
         with patch("corp_finance_monitor.sources.hkex.http_get") as m:
+
             def hkex_get(url, **kwargs):
                 if "activestock" in url:
                     return _mock_response([{"c": "00700", "i": 700, "e": "0700", "n": "TENCENT"}])
                 return _mock_response(_hkex_search_response())
 
             m.side_effect = hkex_get
-            refs = source.discover(
-                watchlist=[{"stock": "00700", "kinds": ["annual"]}]
-            )
+            refs = source.discover(watchlist=[{"stock": "00700", "kinds": ["annual"]}])
 
         self.assertEqual(len(refs), 1)
         self.assertEqual(refs[0].stock_code, "00700")

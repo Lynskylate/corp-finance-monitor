@@ -14,11 +14,12 @@ If you want to test the tailnet HTTPS endpoint instead of localhost,
 set BASE_URL env var:
     RUN_DEPLOYED_E2E=1 BASE_URL=https://gtr.tail414c32.ts.net python3 -m unittest tests/test_e2e_deployed.py -v
 """
+
 import json
 import os
 import unittest
 import urllib.request
-from urllib.error import HTTPError, URLError
+from urllib.error import HTTPError
 
 if os.environ.get("RUN_DEPLOYED_E2E") != "1":
     raise unittest.SkipTest("set RUN_DEPLOYED_E2E=1 to run deployed-stack E2E checks")
@@ -146,6 +147,7 @@ class TestDeployedFrontend(unittest.TestCase):
 
         # Find script src like /assets/index-*.js
         import re
+
         m = re.search(r'src="(/assets/[^"]+\.js)"', html)
         self.assertIsNotNone(m, "no JS bundle found in HTML")
         js_url = BASE + m.group(1)
@@ -162,6 +164,7 @@ class TestDeployedFrontend(unittest.TestCase):
         html = body.decode("utf-8")
 
         import re
+
         m = re.search(r'href="(/assets/[^"]+\.css)"', html)
         self.assertIsNotNone(m, "no CSS bundle found in HTML")
         css_url = BASE + m.group(1)

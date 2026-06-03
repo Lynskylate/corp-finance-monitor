@@ -1,9 +1,9 @@
 from __future__ import annotations
+
 import os
 import sqlite3
 import threading
 from datetime import datetime
-from typing import List, Optional
 
 from corp_finance_monitor.core.config import StateStoreConfig
 from corp_finance_monitor.core.model import FilingRef, RunRecord, Subscription
@@ -13,7 +13,7 @@ from corp_finance_monitor.core.state import AbstractStateStore
 class SQLiteStateStore(AbstractStateStore):
     def __init__(self, config: StateStoreConfig):
         self.path = os.path.abspath(config.path or "./data/.cfm_state/state.db")
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: sqlite3.Connection | None = None
         self._lock = threading.RLock()
 
     def initialize(self):
@@ -140,7 +140,7 @@ class SQLiteStateStore(AbstractStateStore):
             self._conn.commit()
         return int(cur.lastrowid)
 
-    def list_runs(self, limit: int = 20) -> List[RunRecord]:
+    def list_runs(self, limit: int = 20) -> list[RunRecord]:
         with self._lock:
             rows = self._conn.execute(
                 """
@@ -163,7 +163,7 @@ class SQLiteStateStore(AbstractStateStore):
             for row in rows
         ]
 
-    def last_successful_run_start(self) -> Optional[str]:
+    def last_successful_run_start(self) -> str | None:
         """Return the started_at of the most recent run with no failures."""
         with self._lock:
             row = self._conn.execute(
@@ -204,10 +204,10 @@ class SQLiteStateStore(AbstractStateStore):
 
     def list_subscriptions(
         self,
-        source: Optional[str] = None,
-        stock_code: Optional[str] = None,
+        source: str | None = None,
+        stock_code: str | None = None,
         active_only: bool = False,
-    ) -> List[Subscription]:
+    ) -> list[Subscription]:
         query = """
             SELECT id, name, source, stock_code, kind, target, active, created_at, updated_at
             FROM subscriptions
@@ -229,9 +229,7 @@ class SQLiteStateStore(AbstractStateStore):
 
     def delete_subscription(self, subscription_id: int) -> bool:
         with self._lock:
-            cur = self._conn.execute(
-                "DELETE FROM subscriptions WHERE id = ?", (subscription_id,)
-            )
+            cur = self._conn.execute("DELETE FROM subscriptions WHERE id = ?", (subscription_id,))
             self._conn.commit()
             return cur.rowcount > 0
 
@@ -265,7 +263,7 @@ class SQLiteStateStore(AbstractStateStore):
         done_count = int(done_row[0]) if done_row else 0
         return done_count, 0  # total is tracked by engine, not stored here
 
-    def clear_scan_progress(self, source: Optional[str] = None) -> None:
+    def clear_scan_progress(self, source: str | None = None) -> None:
         with self._lock:
             if source:
                 self._conn.execute(

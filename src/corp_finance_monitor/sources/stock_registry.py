@@ -6,6 +6,7 @@ Stock Registry — 自动获取并缓存 cninfo 全量股票列表。
 
 本地缓存: data/.cfm_state/stocks.db (SQLite)
 """
+
 from __future__ import annotations
 
 import logging
@@ -13,7 +14,6 @@ import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
-from typing import List, Optional
 
 from .base import http_get
 
@@ -57,7 +57,7 @@ class StockEntry:
         self.exchange = exchange
         self.category = category
 
-    def to_watchlist_entry(self, kinds: Optional[List[str]] = None) -> dict:
+    def to_watchlist_entry(self, kinds: list[str] | None = None) -> dict:
         """转换为与 config.yaml watchlist 条目相同的格式，供 CninfoSource.discover 使用。"""
         entry = {"stock": self.stock_code, "org_id": self.org_id}
         if kinds:
@@ -81,7 +81,7 @@ class CninfoStockRegistry:
         self._cache_dir = cache_dir
         self._ttl_hours = ttl_hours
         self._db_path = os.path.join(cache_dir, "stocks.db")
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: sqlite3.Connection | None = None
         self._lock = threading.Lock()
 
     def initialize(self) -> None:
@@ -120,9 +120,7 @@ class CninfoStockRegistry:
         if not self._conn:
             return False
         with self._lock:
-            row = self._conn.execute(
-                "SELECT MAX(updated_at) AS latest FROM stocks"
-            ).fetchone()
+            row = self._conn.execute("SELECT MAX(updated_at) AS latest FROM stocks").fetchone()
         if not row or not row["latest"]:
             return False
         try:
@@ -192,9 +190,9 @@ class CninfoStockRegistry:
 
     def get_all(
         self,
-        exchange: Optional[str] = None,
-        category: Optional[str] = None,
-    ) -> List[StockEntry]:
+        exchange: str | None = None,
+        category: str | None = None,
+    ) -> list[StockEntry]:
         if not self._conn:
             return []
         query = "SELECT stock_code, org_id, name, exchange, category FROM stocks WHERE 1=1"
@@ -221,14 +219,14 @@ class CninfoStockRegistry:
             for row in rows
         ]
 
-    def get_a_shares(self) -> List[StockEntry]:
+    def get_a_shares(self) -> list[StockEntry]:
         return self.get_all(category="A股")
 
-    def get_stock_codes(self) -> List[str]:
+    def get_stock_codes(self) -> list[str]:
         """Return stock codes for all A-shares via a generic registry interface."""
         return [entry.stock_code for entry in self.get_a_shares()]
 
-    def count(self, exchange: Optional[str] = None) -> int:
+    def count(self, exchange: str | None = None) -> int:
         if not self._conn:
             return 0
         query = "SELECT COUNT(*) FROM stocks"
@@ -240,7 +238,7 @@ class CninfoStockRegistry:
             row = self._conn.execute(query, params).fetchone()
         return int(row[0]) if row else 0
 
-    def lookup(self, stock_code: str) -> Optional[StockEntry]:
+    def lookup(self, stock_code: str) -> StockEntry | None:
         if not self._conn:
             return None
         with self._lock:

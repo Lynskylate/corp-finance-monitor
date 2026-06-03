@@ -6,12 +6,21 @@ API: POST /new/hisAnnouncement/query
   - watchlist 模式 (默认): 按 config watchlist 逐股票 discover
   - full_market 模式: 通过 CninfoStockRegistry 获取全量 A 股列表批量 discover
 """
-import logging
-from typing import List, Optional, Sequence
 
+from __future__ import annotations
+
+import logging
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
+from corp_finance_monitor.core.config import SourceConfig
+from corp_finance_monitor.core.model import Filing, FilingKind, FilingRef
 from corp_finance_monitor.core.source import AbstractSource
-from corp_finance_monitor.core.model import FilingRef, Filing, FilingKind
-from .base import http_post, http_get, parse_timestamp
+
+if TYPE_CHECKING:
+    from .stock_registry import CninfoStockRegistry
+
+from .base import http_get, http_post, parse_timestamp
 
 logger = logging.getLogger("cfm.source.cninfo")
 
@@ -25,6 +34,7 @@ CATEGORY_MAP = {
     "q1": "category_yjdbg_szsh",
     "q3": "category_sjdbg_szsh",
 }
+
 
 def _detect_kind(title: str) -> FilingKind:
     # NOTE on intent: the rule below is intentionally asymmetric on purpose
@@ -45,18 +55,19 @@ def _detect_kind(title: str) -> FilingKind:
 
 
 class CninfoSource(AbstractSource):
-    def __init__(self, name: str, config: "SourceConfig"):
+    def __init__(self, name: str, config: SourceConfig):
         super().__init__(name, config)
-        self._registry: Optional["CninfoStockRegistry"] = None
+        self._registry: CninfoStockRegistry | None = None
 
     @property
     def _full_market(self) -> bool:
         return bool(self.options.get("full_market", False))
 
-    def _get_registry(self) -> "CninfoStockRegistry":
+    def _get_registry(self) -> CninfoStockRegistry:
         """Lazily initialize CninfoStockRegistry."""
         if self._registry is None:
             from .stock_registry import CninfoStockRegistry
+
             cache_dir = self.options.get("registry_cache_dir", "./data/.cfm_state")
             self._registry = CninfoStockRegistry(cache_dir=cache_dir)
             self._registry.initialize()
@@ -65,10 +76,10 @@ class CninfoSource(AbstractSource):
 
     def discover(
         self,
-        watchlist: Optional[List[dict]] = None,
-        since: Optional[str] = None,
-        only_stock_codes: Optional[Sequence[str]] = None,
-    ) -> List[FilingRef]:
+        watchlist: list[dict] | None = None,
+        since: str | None = None,
+        only_stock_codes: Sequence[str] | None = None,
+    ) -> list[FilingRef]:
         if self._full_market:
             return self._discover_full_market(
                 since=since,
@@ -78,31 +89,29 @@ class CninfoSource(AbstractSource):
 
     def _discover_watchlist(
         self,
-        watchlist: Optional[List[dict]] = None,
-        since: Optional[str] = None,
-    ) -> List[FilingRef]:
+        watchlist: list[dict] | None = None,
+        since: str | None = None,
+    ) -> list[FilingRef]:
         """Original watchlist-based discover logic (unchanged)."""
         refs = []
-        for entry in (watchlist or self.watchlist):
+        for entry in watchlist or self.watchlist:
             stock = entry.get("stock", "")
             org_id = entry.get("org_id", "")
             kinds = entry.get("kinds", ["annual", "semi", "q1", "q3"])
             limit = int(entry.get("limit", 0) or 0)
 
-            refs.extend(
-                self._discover_single_stock(stock, org_id, kinds, since, limit)
-            )
+            refs.extend(self._discover_single_stock(stock, org_id, kinds, since, limit))
             if limit and len(refs) >= limit:
                 return refs[:limit]
         return refs
 
     def _discover_full_market(
         self,
-        since: Optional[str] = None,
-        only_stock_codes: Optional[Sequence[str]] = None,
-    ) -> List[FilingRef]:
+        since: str | None = None,
+        only_stock_codes: Sequence[str] | None = None,
+    ) -> list[FilingRef]:
         """Full market mode: use registry to scan all A-shares."""
-        refs: List[FilingRef] = []
+        refs: list[FilingRef] = []
         try:
             registry = self._get_registry()
         except Exception as exc:
@@ -113,7 +122,7 @@ class CninfoSource(AbstractSource):
         logger.info("Registry loaded: %d stocks total", len(stocks))
 
         if only_stock_codes:
-            allowed = {code for code in only_stock_codes}
+            allowed = set(only_stock_codes)
             stocks = [entry for entry in stocks if entry.stock_code in allowed]
             logger.info("Filtered to %d stocks by only_stock_codes", len(stocks))
 
@@ -127,34 +136,34 @@ class CninfoSource(AbstractSource):
             stock = wl["stock"]
             org_id = wl.get("org_id", "")
 
-            refs.extend(
-                self._discover_single_stock(stock, org_id, kinds, since)
-            )
+            refs.extend(self._discover_single_stock(stock, org_id, kinds, since))
 
             if idx % 100 == 0:
                 logger.info(
                     "Full-market discover progress: %d/%d stocks, %d refs so far",
-                    idx, len(stocks), len(refs),
+                    idx,
+                    len(stocks),
+                    len(refs),
                 )
 
-        logger.info("Full-market discover complete: %d stocks scanned, %d refs", len(stocks), len(refs))
+        logger.info(
+            "Full-market discover complete: %d stocks scanned, %d refs", len(stocks), len(refs)
+        )
         return refs
 
     def _discover_single_stock(
         self,
         stock: str,
         org_id: str,
-        kinds: List[str],
-        since: Optional[str] = None,
+        kinds: list[str],
+        since: str | None = None,
         limit: int = 0,
-    ) -> List[FilingRef]:
+    ) -> list[FilingRef]:
         """Discover filings for a single stock."""
-        refs: List[FilingRef] = []
+        refs: list[FilingRef] = []
 
         stock_param = f"{stock},{org_id}" if org_id else stock
-        category = ";".join(
-            CATEGORY_MAP[k] for k in kinds if k in CATEGORY_MAP
-        ) or ALL_KINDS
+        category = ";".join(CATEGORY_MAP[k] for k in kinds if k in CATEGORY_MAP) or ALL_KINDS
 
         # 确定板块
         if stock.startswith(("0", "2", "3")):
@@ -166,6 +175,7 @@ class CninfoSource(AbstractSource):
 
         # Build date range: since~today (API-level filter)
         from datetime import datetime as dt
+
         se_date = ""
         if since:
             end_date = dt.utcnow().strftime("%Y-%m-%d")
@@ -225,7 +235,7 @@ class CninfoSource(AbstractSource):
 
         return refs
 
-    def fetch(self, ref: FilingRef) -> Optional[Filing]:
+    def fetch(self, ref: FilingRef) -> Filing | None:
         if not ref.url:
             return None
         try:

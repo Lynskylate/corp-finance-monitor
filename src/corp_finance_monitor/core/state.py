@@ -1,6 +1,6 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import List, Optional
 
 from .model import FilingRef, RunRecord, Subscription
 
@@ -9,16 +9,13 @@ class AbstractStateStore(ABC):
     """状态存储抽象：去重、运行记录、订阅管理、扫描进度。"""
 
     @abstractmethod
-    def initialize(self):
-        ...
+    def initialize(self): ...
 
     @abstractmethod
-    def has_filing(self, ref: FilingRef) -> bool:
-        ...
+    def has_filing(self, ref: FilingRef) -> bool: ...
 
     @abstractmethod
-    def record_filing(self, ref: FilingRef, stored_path: str):
-        ...
+    def record_filing(self, ref: FilingRef, stored_path: str): ...
 
     @abstractmethod
     def record_run(
@@ -28,34 +25,29 @@ class AbstractStateStore(ABC):
         discovered: int,
         fetched: int,
         failed: int,
-    ) -> int:
-        ...
+    ) -> int: ...
 
     @abstractmethod
-    def list_runs(self, limit: int = 20) -> List[RunRecord]:
-        ...
+    def list_runs(self, limit: int = 20) -> list[RunRecord]: ...
 
     @abstractmethod
-    def last_successful_run_start(self) -> Optional[str]:
+    def last_successful_run_start(self) -> str | None:
         """Return the started_at timestamp of the last successful run, or None."""
         ...
 
     @abstractmethod
-    def create_subscription(self, subscription: Subscription) -> Subscription:
-        ...
+    def create_subscription(self, subscription: Subscription) -> Subscription: ...
 
     @abstractmethod
     def list_subscriptions(
         self,
-        source: Optional[str] = None,
-        stock_code: Optional[str] = None,
+        source: str | None = None,
+        stock_code: str | None = None,
         active_only: bool = False,
-    ) -> List[Subscription]:
-        ...
+    ) -> list[Subscription]: ...
 
     @abstractmethod
-    def delete_subscription(self, subscription_id: int) -> bool:
-        ...
+    def delete_subscription(self, subscription_id: int) -> bool: ...
 
     # --- Scan progress (Phase 3: checkpoint/resume) ---
 
@@ -75,10 +67,9 @@ class AbstractStateStore(ABC):
         ...
 
     @abstractmethod
-    def clear_scan_progress(self, source: Optional[str] = None) -> None:
+    def clear_scan_progress(self, source: str | None = None) -> None:
         """Clear scan progress. If source is None, clear all sources."""
         ...
 
     @abstractmethod
-    def close(self):
-        ...
+    def close(self): ...

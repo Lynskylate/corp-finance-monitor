@@ -1,8 +1,8 @@
 from .base import AbstractNotifier, NotifierResult
-from .webhook import WebhookNotifier
 from .email import EmailNotifier
-from .wechat import WeChatNotifier
 from .registry import NotifierRegistry
+from .webhook import WebhookNotifier
+from .wechat import WeChatNotifier
 
 __all__ = [
     "AbstractNotifier",

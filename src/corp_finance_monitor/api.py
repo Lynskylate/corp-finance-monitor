@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +19,7 @@ logger = logging.getLogger("cfm.api")
 # ---------------------------------------------------------------------------
 # Serializers
 # ---------------------------------------------------------------------------
+
 
 def serialize_ref(ref):
     return {
@@ -53,7 +54,8 @@ def serialize_subscription(sub: Subscription):
 # App factory
 # ---------------------------------------------------------------------------
 
-def create_app(config: Config, source_registry: Dict[str, type]) -> FastAPI:
+
+def create_app(config: Config, source_registry: dict[str, type]) -> FastAPI:
     """Build and return a FastAPI application with all API routes."""
     engine = Engine(config, source_registry)
     engine.initialize()
@@ -90,13 +92,13 @@ def create_app(config: Config, source_registry: Dict[str, type]) -> FastAPI:
 
     @app.get("/api/filings")
     async def list_filings(
-        kind: Optional[str] = None,
+        kind: str | None = None,
         limit: int = 50,
         offset: int = 0,
-        source: Optional[str] = None,
-        stock_code: Optional[str] = None,
-        since: Optional[str] = None,
-        exchange: Optional[str] = None,
+        source: str | None = None,
+        stock_code: str | None = None,
+        since: str | None = None,
+        exchange: str | None = None,
     ):
         if limit < 0 or offset < 0:
             raise HTTPException(status_code=400, detail="limit_offset_must_be_non_negative")
@@ -154,8 +156,8 @@ def create_app(config: Config, source_registry: Dict[str, type]) -> FastAPI:
     @app.get("/api/subscriptions")
     async def list_subscriptions(
         active_only: bool = False,
-        source: Optional[str] = None,
-        stock_code: Optional[str] = None,
+        source: str | None = None,
+        stock_code: str | None = None,
     ):
         subs = engine.state_store.list_subscriptions(
             source=source,
@@ -204,7 +206,9 @@ def create_app(config: Config, source_registry: Dict[str, type]) -> FastAPI:
             loop = asyncio.get_event_loop()
             stats = await loop.run_in_executor(
                 app.state.executor,
-                lambda: engine.run_once(selected_sources=selected_sources, since=since, resume=resume),
+                lambda: engine.run_once(
+                    selected_sources=selected_sources, since=since, resume=resume
+                ),
             )
         return {"stats": stats}
 
@@ -225,10 +229,10 @@ def create_app(config: Config, source_registry: Dict[str, type]) -> FastAPI:
     @app.get("/api/stats")
     async def stats():
         total = engine.storage.count_refs()
-        by_source: Dict[str, int] = {}
+        by_source: dict[str, int] = {}
         for src in engine.storage.list_distinct_sources():
             by_source[src] = engine.storage.count_refs(source=src)
-        by_kind: Dict[str, int] = {}
+        by_kind: dict[str, int] = {}
         for kind in engine.storage.list_distinct_kinds():
             by_kind[kind] = engine.storage.count_refs(kind=FilingKind(kind))
         return {"total": total, "by_source": by_source, "by_kind": by_kind}
@@ -243,7 +247,7 @@ def create_app(config: Config, source_registry: Dict[str, type]) -> FastAPI:
     return app
 
 
-def serve(config: Config, source_registry: Dict[str, type]):
+def serve(config: Config, source_registry: dict[str, type]):
     import uvicorn
 
     app = create_app(config, source_registry)

@@ -1,0 +1,15 @@
+# corp-finance-monitor pre-commit hooks
+# Install:  pre-commit install
+# Run all:  pre-commit run --all-files
+#
+# Note: Tests are NOT in pre-commit (too slow for every commit).
+# Use `make gate` before pushing, or `make gate-scheduling` for targeted checks.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.12
+    hooks:
+      - id: ruff-format
+        name: ruff format
+      - id: ruff
+        name: ruff check
+        args: [--fix, --exit-non-zero-on-fix]

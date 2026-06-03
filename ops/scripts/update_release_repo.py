@@ -30,8 +30,7 @@ def record_previous_release(stack: dict[str, Any]) -> list[dict[str, Any]]:
     snapshot = {
         "released_at": datetime.now(timezone.utc).isoformat(),
         "containers": {
-            container["service_ref"]: container["image_digest"]
-            for container in stack["containers"]
+            container["service_ref"]: container["image_digest"] for container in stack["containers"]
         },
     }
     if any(not digest.endswith("0" * 64) for digest in snapshot["containers"].values()):
@@ -39,7 +38,9 @@ def record_previous_release(stack: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
-def update_stacks(release_repo: Path, environment: str, metadata: dict[str, dict[str, Any]]) -> list[Path]:
+def update_stacks(
+    release_repo: Path, environment: str, metadata: dict[str, dict[str, Any]]
+) -> list[Path]:
     changed_paths: list[Path] = []
     matched_services: set[str] = set()
     artifact_sources = {
@@ -79,12 +80,9 @@ def update_stacks(release_repo: Path, environment: str, metadata: dict[str, dict
                     container["image_tag"] = payload["image_tag"]
                 if payload.get("image_artifact"):
                     container["image_artifact"] = payload["image_artifact"]
-        if (
-            artifact_source_repository
-            and (
-                stack.get("artifact_source_repository") != artifact_source_repository
-                or str(stack.get("artifact_source_run_id")) != artifact_source_run_id
-            )
+        if artifact_source_repository and (
+            stack.get("artifact_source_repository") != artifact_source_repository
+            or str(stack.get("artifact_source_run_id")) != artifact_source_run_id
         ):
             changed = True
             stack["artifact_source_repository"] = artifact_source_repository
@@ -101,7 +99,9 @@ def update_stacks(release_repo: Path, environment: str, metadata: dict[str, dict
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Update release-config stack digests from build metadata")
+    parser = argparse.ArgumentParser(
+        description="Update release-config stack digests from build metadata"
+    )
     parser.add_argument("--release-repo-path", required=True)
     parser.add_argument("--environment", required=True)
     parser.add_argument("--artifact-dir", required=True)

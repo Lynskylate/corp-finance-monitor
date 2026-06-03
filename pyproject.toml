@@ -22,3 +22,32 @@ packages = ["src/corp_finance_monitor"]
 
 [tool.uv]
 managed = true
+
+[dependency-groups]
+dev = ["ruff>=0.15.15"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+exclude = [".venv", "dist", ".git", "__pycache__", "wheelhouse", "data", ".claude/**"]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "B",
+    "UP",
+]
+ignore = [
+    "E501",
+    "B027",
+    "B905",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["corp_finance_monitor"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

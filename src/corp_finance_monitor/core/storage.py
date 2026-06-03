@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import List, Optional
-from .model import FilingRef, Filing, FilingKind
+
+from .model import Filing, FilingKind, FilingRef
 
 
 class AbstractStorage(ABC):
@@ -32,53 +33,53 @@ class AbstractStorage(ABC):
         ...
 
     @abstractmethod
-    def get(self, ref: FilingRef) -> Optional[Filing]:
+    def get(self, ref: FilingRef) -> Filing | None:
         """获取已存储的财报"""
         ...
 
     @abstractmethod
-    def get_path(self, ref: FilingRef) -> Optional[str]:
+    def get_path(self, ref: FilingRef) -> str | None:
         """获取已存储文件路径"""
         ...
 
     @abstractmethod
-    def find_ref(self, source: str, source_id: str) -> Optional[FilingRef]:
+    def find_ref(self, source: str, source_id: str) -> FilingRef | None:
         """按 source/source_id 查找引用"""
         ...
 
     @abstractmethod
     def list_refs(
         self,
-        source: Optional[str] = None,
-        stock_code: Optional[str] = None,
-        kind: Optional[FilingKind] = None,
-        since: Optional[str] = None,
-        limit: Optional[int] = None,
+        source: str | None = None,
+        stock_code: str | None = None,
+        kind: FilingKind | None = None,
+        since: str | None = None,
+        limit: int | None = None,
         offset: int = 0,
-        exchange: Optional[str] = None,
-    ) -> List[FilingRef]:
+        exchange: str | None = None,
+    ) -> list[FilingRef]:
         """按条件查询已存储的财报引用"""
         ...
 
     @abstractmethod
     def count_refs(
         self,
-        source: Optional[str] = None,
-        stock_code: Optional[str] = None,
-        kind: Optional[FilingKind] = None,
-        since: Optional[str] = None,
-        exchange: Optional[str] = None,
+        source: str | None = None,
+        stock_code: str | None = None,
+        kind: FilingKind | None = None,
+        since: str | None = None,
+        exchange: str | None = None,
     ) -> int:
         """按条件统计已存储的财报引用数量"""
         ...
 
     @abstractmethod
-    def list_distinct_sources(self) -> List[str]:
+    def list_distinct_sources(self) -> list[str]:
         """返回所有不重复的数据源名称"""
         ...
 
     @abstractmethod
-    def list_distinct_kinds(self) -> List[str]:
+    def list_distinct_kinds(self) -> list[str]:
         """返回所有不重复的报告类型"""
         ...
 

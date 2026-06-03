@@ -4,11 +4,13 @@ Email notifier — stub for future email delivery.
 Target format: "email:user@example.com"
 Requires SMTP configuration (to be added via config.yaml).
 """
+
 from __future__ import annotations
+
 import logging
-from typing import Optional
 
 from corp_finance_monitor.core.model import FilingRef, Subscription
+
 from .base import AbstractNotifier, NotifierResult
 
 logger = logging.getLogger("cfm.notifier.email")
@@ -35,7 +37,7 @@ class EmailNotifier(AbstractNotifier):
         self,
         subscription: Subscription,
         ref: FilingRef,
-        stored_path: Optional[str] = None,
+        stored_path: str | None = None,
     ) -> NotifierResult:
         email_addr = subscription.target.removeprefix("email:")
         logger.info(

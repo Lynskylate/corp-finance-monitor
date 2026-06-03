@@ -4,11 +4,13 @@ WeChat notifier — stub for future WeChat Work (企业微信) delivery.
 Target format: "wechat:webhook_url" or "wechat:user_id"
 Requires WeChat Work bot or message API configuration.
 """
+
 from __future__ import annotations
+
 import logging
-from typing import Optional
 
 from corp_finance_monitor.core.model import FilingRef, Subscription
+
 from .base import AbstractNotifier, NotifierResult
 
 logger = logging.getLogger("cfm.notifier.wechat")
@@ -35,7 +37,7 @@ class WeChatNotifier(AbstractNotifier):
         self,
         subscription: Subscription,
         ref: FilingRef,
-        stored_path: Optional[str] = None,
+        stored_path: str | None = None,
     ) -> NotifierResult:
         wechat_target = subscription.target.removeprefix("wechat:")
         logger.info(

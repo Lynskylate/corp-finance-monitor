@@ -1,11 +1,12 @@
 """Tests for CninfoStockRegistry — stock list fetching, caching, and queries."""
+
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
 from corp_finance_monitor.sources.stock_registry import (
-    CninfoStockRegistry,
     STOCK_LIST_URL,
+    CninfoStockRegistry,
     StockEntry,
     _infer_exchange,
 )
@@ -32,13 +33,55 @@ class TestInferExchange(unittest.TestCase):
 
 SAMPLE_STOCK_LIST = {
     "stockList": [
-        {"code": "000001", "orgId": "gssz0000001", "category": "A股", "pinyin": "payh", "zwjc": "平安银行"},
-        {"code": "000725", "orgId": "gssz0000725", "category": "A股", "pinyin": "jda", "zwjc": "京东方A"},
-        {"code": "600000", "orgId": "gssh0600000", "category": "A股", "pinyin": "pfyh", "zwjc": "浦发银行"},
-        {"code": "688981", "orgId": "9900031171", "category": "A股", "pinyin": "zxxc", "zwjc": "中芯国际"},
-        {"code": "430001", "orgId": "gfbj0028001", "category": "A股", "pinyin": "", "zwjc": "世纪瑞尔"},
-        {"code": "920010", "orgId": "gfbj9200010", "category": "A股", "pinyin": "", "zwjc": "北交示例"},
-        {"code": "200002", "orgId": "gssz0000002", "category": "B股", "pinyin": "wjb", "zwjc": "万科B"},
+        {
+            "code": "000001",
+            "orgId": "gssz0000001",
+            "category": "A股",
+            "pinyin": "payh",
+            "zwjc": "平安银行",
+        },
+        {
+            "code": "000725",
+            "orgId": "gssz0000725",
+            "category": "A股",
+            "pinyin": "jda",
+            "zwjc": "京东方A",
+        },
+        {
+            "code": "600000",
+            "orgId": "gssh0600000",
+            "category": "A股",
+            "pinyin": "pfyh",
+            "zwjc": "浦发银行",
+        },
+        {
+            "code": "688981",
+            "orgId": "9900031171",
+            "category": "A股",
+            "pinyin": "zxxc",
+            "zwjc": "中芯国际",
+        },
+        {
+            "code": "430001",
+            "orgId": "gfbj0028001",
+            "category": "A股",
+            "pinyin": "",
+            "zwjc": "世纪瑞尔",
+        },
+        {
+            "code": "920010",
+            "orgId": "gfbj9200010",
+            "category": "A股",
+            "pinyin": "",
+            "zwjc": "北交示例",
+        },
+        {
+            "code": "200002",
+            "orgId": "gssz0000002",
+            "category": "B股",
+            "pinyin": "wjb",
+            "zwjc": "万科B",
+        },
         {"code": "", "orgId": "gssz0000003", "category": "A股", "pinyin": "", "zwjc": "空代码"},
         {"code": "000010", "orgId": "", "category": "A股", "pinyin": "", "zwjc": "空orgId"},
     ]

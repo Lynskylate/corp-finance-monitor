@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import List, Optional, Sequence
+from collections.abc import Sequence
 
 from .config import SourceConfig
-from .model import FilingRef, Filing
+from .model import Filing, FilingRef
 
 
 class AbstractSource(ABC):
@@ -19,7 +20,7 @@ class AbstractSource(ABC):
         self.config = config
 
     @property
-    def watchlist(self) -> List[dict]:
+    def watchlist(self) -> list[dict]:
         return self.config.watchlist or []
 
     @property
@@ -29,10 +30,10 @@ class AbstractSource(ABC):
     @abstractmethod
     def discover(
         self,
-        watchlist: Optional[List[dict]] = None,
-        since: Optional[str] = None,
-        only_stock_codes: Optional[Sequence[str]] = None,
-    ) -> List[FilingRef]:
+        watchlist: list[dict] | None = None,
+        since: str | None = None,
+        only_stock_codes: Sequence[str] | None = None,
+    ) -> list[FilingRef]:
         """
         发现新的财报文件。
 
@@ -46,7 +47,7 @@ class AbstractSource(ABC):
         ...
 
     @abstractmethod
-    def fetch(self, ref: FilingRef) -> Optional[Filing]:
+    def fetch(self, ref: FilingRef) -> Filing | None:
         """
         根据 FilingRef 下载完整文件内容。
         返回 Filing (包含 bytes content) 或 None (失败)。

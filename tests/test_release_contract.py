@@ -8,7 +8,6 @@ import yaml
 
 from ops.scripts import list_services, update_release_repo
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPS = REPO_ROOT / "ops"
 

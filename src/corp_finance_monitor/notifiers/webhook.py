@@ -18,12 +18,13 @@ Payload format:
 
 The target URL is taken from the subscription's `target` field.
 """
+
 from __future__ import annotations
-import json
+
 import logging
-from typing import Optional
 
 from corp_finance_monitor.core.model import FilingRef, Subscription
+
 from .base import AbstractNotifier, NotifierResult
 
 logger = logging.getLogger("cfm.notifier.webhook")
@@ -52,7 +53,7 @@ class WebhookNotifier(AbstractNotifier):
         self,
         subscription: Subscription,
         ref: FilingRef,
-        stored_path: Optional[str] = None,
+        stored_path: str | None = None,
     ) -> NotifierResult:
         if requests is None:
             return NotifierResult(

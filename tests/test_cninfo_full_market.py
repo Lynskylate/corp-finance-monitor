@@ -1,11 +1,11 @@
 """Tests for CninfoSource full_market mode."""
+
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 from corp_finance_monitor.core.config import SourceConfig
-from corp_finance_monitor.core.model import FilingRef, FilingKind
-from corp_finance_monitor.sources.cninfo import CninfoSource, API_URL
+from corp_finance_monitor.sources.cninfo import CninfoSource
 
 
 def _make_source(options=None, watchlist=None):
@@ -125,7 +125,12 @@ class TestCninfoSourceFullMarketMode(unittest.TestCase):
         mock_reg_resp = MagicMock()
         mock_reg_resp.json.return_value = {
             "stockList": [
-                {"code": f"00000{i}", "orgId": f"gssz000000{i}", "category": "A股", "zwjc": f"Stock{i}"}
+                {
+                    "code": f"00000{i}",
+                    "orgId": f"gssz000000{i}",
+                    "category": "A股",
+                    "zwjc": f"Stock{i}",
+                }
                 for i in range(1, 6)
             ]
         }

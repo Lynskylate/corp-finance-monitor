@@ -1,16 +1,19 @@
 from __future__ import annotations
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+
 import logging
 import threading
 import time
+from collections.abc import Iterable, Sequence
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from datetime import datetime
-from typing import Dict, Iterable, List, Optional, Sequence
+
+from corp_finance_monitor.notifiers.registry import NotifierRegistry
 
 from .config import Config, SchedulingTierConfig
 from .model import FilingRef
 from .source import AbstractSource
-from .storage import AbstractStorage
 from .state import AbstractStateStore
+from .storage import AbstractStorage
 
 logger = logging.getLogger("cfm")
 
@@ -45,12 +48,12 @@ class Engine:
     支持: 去重、状态追踪(断点续跑)、定期轮询
     """
 
-    def __init__(self, config: Config, source_registry: Dict[str, type]):
+    def __init__(self, config: Config, source_registry: dict[str, type]):
         self.config = config
-        self.sources: Dict[str, AbstractSource] = {}
-        self.storage: Optional[AbstractStorage] = None
-        self.state_store: Optional[AbstractStateStore] = None
-        self.notifier_registry: Optional[NotifierRegistry] = None
+        self.sources: dict[str, AbstractSource] = {}
+        self.storage: AbstractStorage | None = None
+        self.state_store: AbstractStateStore | None = None
+        self.notifier_registry: NotifierRegistry | None = None
         self._source_registry = source_registry
 
     def initialize(self):
@@ -74,6 +77,7 @@ class Engine:
         backend = self.config.storage.backend
         if backend == "disk":
             from corp_finance_monitor.storage.disk import DiskStorage
+
             return DiskStorage
         raise ValueError(f"Unknown storage backend: {backend}")
 
@@ -81,6 +85,7 @@ class Engine:
         backend = self.config.state_store.backend
         if backend == "sqlite":
             from corp_finance_monitor.state.sqlite import SQLiteStateStore
+
             return SQLiteStateStore
         raise ValueError(f"Unknown state store backend: {backend}")
 
@@ -96,9 +101,9 @@ class Engine:
 
     def _init_notifiers(self):
         """Initialize the notifier registry with built-in notifiers."""
+        from corp_finance_monitor.notifiers.email import EmailNotifier
         from corp_finance_monitor.notifiers.registry import NotifierRegistry
         from corp_finance_monitor.notifiers.webhook import WebhookNotifier
-        from corp_finance_monitor.notifiers.email import EmailNotifier
         from corp_finance_monitor.notifiers.wechat import WeChatNotifier
 
         self.notifier_registry = NotifierRegistry()
@@ -108,11 +113,11 @@ class Engine:
 
     def run_once(
         self,
-        selected_sources: Optional[Sequence[str]] = None,
-        since: Optional[str] = None,
+        selected_sources: Sequence[str] | None = None,
+        since: str | None = None,
         resume: bool = True,
-        tier: Optional[str] = None,
-    ) -> Dict[str, int]:
+        tier: str | None = None,
+    ) -> dict[str, int]:
         """
         执行一轮发现-下载流程。
 
@@ -184,12 +189,12 @@ class Engine:
         self,
         name: str,
         source: AbstractSource,
-        since: Optional[str],
+        since: str | None,
         concurrency: int,
         rate_limiter: RateLimiter,
         resume: bool,
-        tier: Optional[SchedulingTierConfig],
-    ) -> Dict[str, int]:
+        tier: SchedulingTierConfig | None,
+    ) -> dict[str, int]:
         refs = self._discover_refs(
             name=name,
             source=source,
@@ -207,11 +212,11 @@ class Engine:
         self,
         name: str,
         source: AbstractSource,
-        since: Optional[str],
+        since: str | None,
         concurrency: int,
         resume: bool,
-        tier: Optional[SchedulingTierConfig],
-    ) -> List[FilingRef]:
+        tier: SchedulingTierConfig | None,
+    ) -> list[FilingRef]:
         scfg = self.config.sources[name]
         logger.info("Source [%s]: discovering...", name)
 
@@ -249,7 +254,11 @@ class Engine:
                 logger.error("Source [%s] discover failed: %s", name, exc)
                 return []
 
-        stock_codes = tier_stock_codes if tier_stock_codes is not None else self._get_full_market_stock_codes(source)
+        stock_codes = (
+            tier_stock_codes
+            if tier_stock_codes is not None
+            else self._get_full_market_stock_codes(source)
+        )
         if not stock_codes:
             return []
 
@@ -257,21 +266,22 @@ class Engine:
         if use_full_market_progress and self.state_store:
             before = len(stock_codes)
             stock_codes = [
-                code for code in stock_codes
-                if not self.state_store.is_scan_done(name, code)
+                code for code in stock_codes if not self.state_store.is_scan_done(name, code)
             ]
             skipped = before - len(stock_codes)
             if skipped:
                 logger.info(
                     "Source [%s]: resuming — skipped %d already-scanned stocks, %d remaining",
-                    name, skipped, len(stock_codes),
+                    name,
+                    skipped,
+                    len(stock_codes),
                 )
 
         if not stock_codes:
             return []
 
         batch_size = max(1, int(scfg.options.get("full_market_batch_size", 50) or 50))
-        refs: List[FilingRef] = []
+        refs: list[FilingRef] = []
         batches = list(self._chunked(stock_codes, batch_size))
         workers = min(concurrency, len(batches))
         total_batches = len(batches)
@@ -358,7 +368,7 @@ class Engine:
         self,
         source: AbstractSource,
         refs: Sequence[FilingRef],
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         stats = {"discovered": len(refs), "fetched": 0, "failed": 0}
         for ref in refs:
             if self._is_already_fetched(ref):
@@ -390,15 +400,14 @@ class Engine:
         refs: Sequence[FilingRef],
         concurrency: int,
         rate_limiter: RateLimiter,
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         stats = {"discovered": len(refs), "fetched": 0, "failed": 0}
         if not refs:
             return stats
 
         with ThreadPoolExecutor(max_workers=concurrency) as pool:
-            futures: List[Future] = [
-                pool.submit(self._fetch_ref, source, ref, rate_limiter)
-                for ref in refs
+            futures: list[Future] = [
+                pool.submit(self._fetch_ref, source, ref, rate_limiter) for ref in refs
             ]
             for future in as_completed(futures):
                 try:
@@ -416,7 +425,7 @@ class Engine:
         source: AbstractSource,
         ref: FilingRef,
         rate_limiter: RateLimiter,
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         if self._is_already_fetched(ref):
             self._log_filing_result("skip", ref, reason="already_fetched")
             return {"fetched": 0, "failed": 0}
@@ -469,9 +478,9 @@ class Engine:
         )
 
     @staticmethod
-    def _chunked(items: Sequence[str], size: int) -> Iterable[List[str]]:
+    def _chunked(items: Sequence[str], size: int) -> Iterable[list[str]]:
         for idx in range(0, len(items), size):
-            yield list(items[idx:idx + size])
+            yield list(items[idx : idx + size])
 
     @staticmethod
     def _supports_full_market_batching(
@@ -490,8 +499,8 @@ class Engine:
         source: AbstractSource,
         scfg,
         concurrency: int,
-        tier: Optional[SchedulingTierConfig],
-        tier_stock_codes: Optional[Sequence[str]],
+        tier: SchedulingTierConfig | None,
+        tier_stock_codes: Sequence[str] | None,
     ) -> bool:
         if not hasattr(source, "_get_registry"):
             return False
@@ -500,7 +509,7 @@ class Engine:
         return concurrency > 1 and tier_stock_codes is not None
 
     @staticmethod
-    def _get_full_market_stock_codes(source: AbstractSource) -> List[str]:
+    def _get_full_market_stock_codes(source: AbstractSource) -> list[str]:
         if not hasattr(source, "_get_registry"):
             return []
         try:
@@ -543,9 +552,7 @@ class Engine:
             results = self.notifier_registry.dispatch(subs, ref, stored_path)
             for r in results:
                 if r.success:
-                    logger.debug(
-                        "  NOTIFY %s OK → %s", r.channel, r.target
-                    )
+                    logger.debug("  NOTIFY %s OK → %s", r.channel, r.target)
                 else:
                     logger.warning(
                         "  NOTIFY %s FAILED → %s: %s",
@@ -556,7 +563,7 @@ class Engine:
         except Exception as e:
             logger.error("Notification dispatch error: %s", e)
 
-    def run_loop(self, tier: Optional[str] = None):
+    def run_loop(self, tier: str | None = None):
         """持续运行: 定期轮询."""
         tier_cfg = self._get_tier_config(tier)
 
@@ -614,7 +621,7 @@ class Engine:
         if self.storage and hasattr(self.storage, "close"):
             self.storage.close()
 
-    def _get_tier_config(self, tier: Optional[str]) -> Optional[SchedulingTierConfig]:
+    def _get_tier_config(self, tier: str | None) -> SchedulingTierConfig | None:
         if tier is None:
             return None
         for item in self.config.scheduling.tiers:
@@ -625,7 +632,7 @@ class Engine:
     def _tier_interval_seconds(
         self,
         tier: SchedulingTierConfig,
-        month: Optional[int] = None,
+        month: int | None = None,
     ) -> float:
         month = month or datetime.utcnow().month
         multiplier = 1.0
@@ -642,8 +649,8 @@ class Engine:
         self,
         name: str,
         source: AbstractSource,
-        tier: Optional[SchedulingTierConfig],
-    ) -> Optional[List[str]]:
+        tier: SchedulingTierConfig | None,
+    ) -> list[str] | None:
         if tier is None or not tier.stocks:
             return None
         if source.name == "cninfo":
@@ -659,27 +666,23 @@ class Engine:
         self,
         name: str,
         source: AbstractSource,
-        tier_stock_codes: Optional[Sequence[str]],
-    ) -> Optional[List[dict]]:
+        tier_stock_codes: Sequence[str] | None,
+    ) -> list[dict] | None:
         scfg = self.config.sources[name]
         if tier_stock_codes is None:
             return scfg.watchlist
 
         if source.name != "cninfo":
             return [
-                entry
-                for entry in scfg.watchlist
-                if entry.get("stock", "") in set(tier_stock_codes)
+                entry for entry in scfg.watchlist if entry.get("stock", "") in set(tier_stock_codes)
             ]
 
         kinds = source.options.get("kinds", ["annual", "semi", "q1", "q3"])
         by_stock = {
-            entry.get("stock", ""): dict(entry)
-            for entry in scfg.watchlist
-            if entry.get("stock")
+            entry.get("stock", ""): dict(entry) for entry in scfg.watchlist if entry.get("stock")
         }
-        watchlist: List[dict] = []
-        missing_codes: List[str] = []
+        watchlist: list[dict] = []
+        missing_codes: list[str] = []
         for code in tier_stock_codes:
             if code in by_stock:
                 watchlist.append(by_stock[code])
@@ -696,6 +699,8 @@ class Engine:
                         continue
                     watchlist.append(entry.to_watchlist_entry(kinds=kinds))
             except Exception as exc:
-                logger.error("Source [%s]: failed to resolve tier stocks from registry: %s", name, exc)
+                logger.error(
+                    "Source [%s]: failed to resolve tier stocks from registry: %s", name, exc
+                )
 
         return watchlist

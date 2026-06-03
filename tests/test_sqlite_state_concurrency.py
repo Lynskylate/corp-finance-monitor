@@ -12,15 +12,16 @@ The store is used in production with `check_same_thread=False` and an
 RLock guarding every SQL call, so we verify the safety contract
 empirically rather than rely on a theoretical guarantee.
 """
+
 import os
 import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from tests.conftest import SRC  # noqa: F401
 from corp_finance_monitor.core.config import StateStoreConfig
-from corp_finance_monitor.core.model import FilingRef, FilingKind, RunRecord, Subscription
+from corp_finance_monitor.core.model import FilingKind, FilingRef, Subscription
 from corp_finance_monitor.state.sqlite import SQLiteStateStore
+from tests.conftest import SRC  # noqa: F401
 
 
 def _ref(i: int) -> FilingRef:
@@ -49,12 +50,14 @@ class _StateStoreTestBase(unittest.TestCase):
     def tearDown(self):
         self.store.close()
         import shutil
+
         if os.path.isdir(self.tmp):
             shutil.rmtree(self.tmp, ignore_errors=True)
 
     @staticmethod
     def _tmpdir() -> str:
         import tempfile
+
         return tempfile.mkdtemp(prefix="cfm_state_test_")
 
 
@@ -241,7 +244,9 @@ class TestConcurrentRuns(_StateStoreTestBase):
             self.store.record_run(
                 f"2025-06-0{i + 1}T00:00:00",
                 f"2025-06-0{i + 1}T00:01:00",
-                discovered=1, fetched=1, failed=0,
+                discovered=1,
+                fetched=1,
+                failed=0,
             )
         runs = self.store.list_runs(limit=10)
         self.assertEqual(len(runs), 5)

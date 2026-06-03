@@ -6,7 +6,6 @@ import time
 import unittest
 from dataclasses import dataclass
 
-from tests.conftest import SRC  # noqa: F401
 from corp_finance_monitor.core.config import (
     Config,
     EngineConfig,
@@ -17,6 +16,7 @@ from corp_finance_monitor.core.config import (
 from corp_finance_monitor.core.engine import Engine
 from corp_finance_monitor.core.model import Filing, FilingKind, FilingRef
 from corp_finance_monitor.core.source import AbstractSource
+from tests.conftest import SRC  # noqa: F401
 
 
 @dataclass
@@ -38,10 +38,7 @@ class _BatchingCninfoSource(AbstractSource):
         super().__init__(name, config)
         self.discover_calls = []
         self._registry = _FakeRegistry(
-            [
-                _RegistryEntry(stock_code=f"{i:06d}", org_id=f"org{i:06d}")
-                for i in range(1, 6)
-            ]
+            [_RegistryEntry(stock_code=f"{i:06d}", org_id=f"org{i:06d}") for i in range(1, 6)]
         )
 
     def _get_registry(self):
@@ -204,7 +201,9 @@ class EngineConcurrencyTestCase(unittest.TestCase):
             self.assertEqual(stats["discovered"], 5)
             self.assertEqual(stats["fetched"], 5)
             source = engine.sources["cninfo"]
-            self.assertEqual(source.discover_calls, [["000001", "000002"], ["000003", "000004"], ["000005"]])
+            self.assertEqual(
+                source.discover_calls, [["000001", "000002"], ["000003", "000004"], ["000005"]]
+            )
         finally:
             engine.close()
 

@@ -18,6 +18,7 @@ an empty config (no real sources). Then we exercise every endpoint:
 We also exercise the engine's HTTP layer end-to-end with one fake
 "disk" source adapter that records a single deterministic filing.
 """
+
 import json
 import os
 import shutil
@@ -31,14 +32,18 @@ from urllib.error import HTTPError, URLError
 
 import uvicorn
 
-from tests.conftest import SRC  # noqa: F401
+from corp_finance_monitor.api import create_app
 from corp_finance_monitor.core import Config
 from corp_finance_monitor.core.config import (
-    EngineConfig, StorageConfig, StateStoreConfig, APIConfig, SourceConfig,
+    APIConfig,
+    EngineConfig,
+    SourceConfig,
+    StateStoreConfig,
+    StorageConfig,
 )
-from corp_finance_monitor.core.model import FilingRef, Filing, FilingKind
+from corp_finance_monitor.core.model import Filing, FilingKind, FilingRef
 from corp_finance_monitor.core.source import AbstractSource
-from corp_finance_monitor.api import create_app
+from tests.conftest import SRC  # noqa: F401
 
 
 def _free_port() -> int:
@@ -316,7 +321,9 @@ class TestRunsEndpoint(_ServerBase):
             self.engine.state_store.record_run(
                 f"2025-06-0{i + 1}T00:00:00",
                 f"2025-06-0{i + 1}T00:01:00",
-                discovered=1, fetched=1, failed=0,
+                discovered=1,
+                fetched=1,
+                failed=0,
             )
         status, body = _http_get(self.base + "/api/runs?limit=3")
         self.assertEqual(status, 200)
@@ -328,6 +335,7 @@ class TestSyncLocking(_ServerBase):
         # Patch Engine.run_once to slow down so the second request hits the
         # run_lock held by the first one and gets a 409.
         from corp_finance_monitor.core.engine import Engine as EngineCls
+
         original = EngineCls.run_once
         started = threading.Event()
         proceed = threading.Event()
@@ -343,14 +351,18 @@ class TestSyncLocking(_ServerBase):
 
             def first():
                 results["first"] = _http_post(
-                    self.base + "/api/sync", {"sources": ["fake"]}, timeout=10,
+                    self.base + "/api/sync",
+                    {"sources": ["fake"]},
+                    timeout=10,
                 )
 
             def second():
                 # Give the first request a head start
                 started.wait(timeout=5)
                 results["second"] = _http_post(
-                    self.base + "/api/sync", {"sources": ["fake"]}, timeout=10,
+                    self.base + "/api/sync",
+                    {"sources": ["fake"]},
+                    timeout=10,
                 )
 
             t1 = threading.Thread(target=first)

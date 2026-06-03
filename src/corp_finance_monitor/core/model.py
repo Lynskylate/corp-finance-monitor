@@ -1,20 +1,21 @@
 from __future__ import annotations
+
 import enum
 from dataclasses import dataclass
-from typing import Optional
 
 
 class FilingKind(str, enum.Enum):
     """标准化报告类型枚举"""
-    ANNUAL = "annual"           # 年报
-    SEMI = "semi"               # 中报/半年报
-    Q1 = "q1"                   # 一季报
-    Q3 = "q3"                   # 三季报
-    PROSPECTUS = "prospectus"   # 招股说明书
-    ESG = "esg"                 # ESG报告
-    INTERIM = "interim"         # 中期报告（港股）
-    QUARTERLY = "quarterly"     # 季度报告（港股）
-    OTHER = "other"             # 其他
+
+    ANNUAL = "annual"  # 年报
+    SEMI = "semi"  # 中报/半年报
+    Q1 = "q1"  # 一季报
+    Q3 = "q3"  # 三季报
+    PROSPECTUS = "prospectus"  # 招股说明书
+    ESG = "esg"  # ESG报告
+    INTERIM = "interim"  # 中期报告（港股）
+    QUARTERLY = "quarterly"  # 季度报告（港股）
+    OTHER = "other"  # 其他
 
 
 KIND_LABELS = {
@@ -36,15 +37,16 @@ class FilingRef:
     财报引用 — 用于发现阶段返回的轻量级元数据。
     source 和 source_id 共同构成唯一键，用于去重。
     """
-    source: str                # 数据源名称 (e.g. "cninfo", "sse", "hkex")
-    source_id: str             # 数据源内部ID (e.g. announcementId)
-    stock_code: str            # 股票代码
-    stock_name: str = ""       # 公司名称
-    title: str = ""            # 文件标题
+
+    source: str  # 数据源名称 (e.g. "cninfo", "sse", "hkex")
+    source_id: str  # 数据源内部ID (e.g. announcementId)
+    stock_code: str  # 股票代码
+    stock_name: str = ""  # 公司名称
+    title: str = ""  # 文件标题
     kind: FilingKind = FilingKind.OTHER
-    published_at: str = ""     # 发布日期 YYYY-MM-DD
-    url: str = ""              # 下载URL
-    file_size: int = 0         # 文件大小 (bytes)
+    published_at: str = ""  # 发布日期 YYYY-MM-DD
+    url: str = ""  # 下载URL
+    file_size: int = 0  # 文件大小 (bytes)
 
     @property
     def unique_key(self) -> str:
@@ -54,6 +56,7 @@ class FilingRef:
 @dataclass
 class Filing:
     """完整财报 — 包含元数据和内容"""
+
     ref: FilingRef
     content: bytes
     content_type: str = "application/pdf"
@@ -76,7 +79,7 @@ class RunRecord:
 
 @dataclass
 class Subscription:
-    id: Optional[int]
+    id: int | None
     name: str
     source: str = ""
     stock_code: str = ""

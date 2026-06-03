@@ -10,11 +10,13 @@ Usage:
     # After fetching a filing:
     results = registry.dispatch(subscriptions, ref, stored_path)
 """
+
 from __future__ import annotations
+
 import logging
-from typing import List, Optional
 
 from corp_finance_monitor.core.model import FilingRef, Subscription
+
 from .base import AbstractNotifier, NotifierResult
 
 logger = logging.getLogger("cfm.notifier.registry")
@@ -24,12 +26,12 @@ class NotifierRegistry:
     """Routes subscription targets to the correct notifier backend."""
 
     def __init__(self):
-        self._notifiers: List[AbstractNotifier] = []
+        self._notifiers: list[AbstractNotifier] = []
 
     def register(self, notifier: AbstractNotifier):
         self._notifiers.append(notifier)
 
-    def _resolve(self, target: str) -> Optional[AbstractNotifier]:
+    def _resolve(self, target: str) -> AbstractNotifier | None:
         """Find the first notifier that handles this target."""
         for n in self._notifiers:
             if n.match(target):
@@ -38,10 +40,10 @@ class NotifierRegistry:
 
     def dispatch(
         self,
-        subscriptions: List[Subscription],
+        subscriptions: list[Subscription],
         ref: FilingRef,
-        stored_path: Optional[str] = None,
-    ) -> List[NotifierResult]:
+        stored_path: str | None = None,
+    ) -> list[NotifierResult]:
         """
         Send notifications for a filing to all matching subscriptions.
 
@@ -53,7 +55,7 @@ class NotifierRegistry:
 
         Returns one NotifierResult per notification attempted.
         """
-        results: List[NotifierResult] = []
+        results: list[NotifierResult] = []
 
         for sub in subscriptions:
             if not sub.active:
@@ -87,11 +89,13 @@ class NotifierRegistry:
                     sub.name,
                     e,
                 )
-                results.append(NotifierResult(
-                    success=False,
-                    channel=notifier.channel,
-                    target=sub.target,
-                    message=str(e),
-                ))
+                results.append(
+                    NotifierResult(
+                        success=False,
+                        channel=notifier.channel,
+                        target=sub.target,
+                        message=str(e),
+                    )
+                )
 
         return results

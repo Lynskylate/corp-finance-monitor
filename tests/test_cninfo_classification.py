@@ -7,11 +7,12 @@ that look similar but should land in a different bucket.
 The classifier is `_detect_kind` in
 src/corp_finance_monitor/sources/cninfo.py
 """
+
 import unittest
 
-from tests.conftest import SRC  # noqa: F401  (forces src/ onto sys.path)
-from corp_finance_monitor.sources.cninfo import _detect_kind, CATEGORY_MAP
 from corp_finance_monitor.core.model import FilingKind
+from corp_finance_monitor.sources.cninfo import CATEGORY_MAP, _detect_kind
+from tests.conftest import SRC  # noqa: F401  (forces src/ onto sys.path)
 
 
 class TestAnnualClassification(unittest.TestCase):

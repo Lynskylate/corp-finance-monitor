@@ -1,4 +1,5 @@
 """Tests for HKEXStockRegistry."""
+
 import json
 import tempfile
 import unittest
@@ -9,7 +10,6 @@ import requests
 from corp_finance_monitor.sources.hkex_registry import (
     HKEXStockRegistry,
     StockEntry,
-    STOCK_LIST_URL,
 )
 
 SAMPLE_ACTIVE_STOCKS = [

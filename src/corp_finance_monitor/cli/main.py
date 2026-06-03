@@ -2,33 +2,36 @@
 """
 corp-finance-monitor CLI — 企业财报发现、同步、查询与订阅服务
 """
+
 import argparse
 import json
 import logging
 import os
 import sys
-from typing import Dict, Type
 
 from corp_finance_monitor.api import serve
-from corp_finance_monitor.core import Config, Engine, AbstractSource, FilingKind
+from corp_finance_monitor.core import AbstractSource, Config, Engine, FilingKind
 from corp_finance_monitor.core.model import Subscription
 
-SOURCE_REGISTRY: Dict[str, Type[AbstractSource]] = {}
+SOURCE_REGISTRY: dict[str, type[AbstractSource]] = {}
 
 
 def _register_builtin_sources():
     try:
         from corp_finance_monitor.sources.cninfo import CninfoSource
+
         SOURCE_REGISTRY["cninfo"] = CninfoSource
     except ImportError:
         pass
     try:
         from corp_finance_monitor.sources.sse import SSESource
+
         SOURCE_REGISTRY["sse"] = SSESource
     except ImportError:
         pass
     try:
         from corp_finance_monitor.sources.hkex import HKEXSource
+
         SOURCE_REGISTRY["hkex"] = HKEXSource
     except ImportError:
         pass
@@ -75,9 +78,9 @@ def cmd_run(args):
                 resume=getattr(args, "resume", True),
                 tier=getattr(args, "tier", None),
             )
-            print(f"\n{'='*50}")
+            print(f"\n{'=' * 50}")
             print(f"  Complete: {stats}")
-            print(f"{'='*50}")
+            print(f"{'=' * 50}")
         else:
             engine.run_loop(tier=getattr(args, "tier", None))
     finally:
@@ -115,7 +118,7 @@ def cmd_list(args):
 
         print(f"\nStored filings ({len(refs)}):")
         print(f"  {'Source':<8s} {'Stock':<10s} {'Kind':<10s} {'Date':<12s} {'Title'}")
-        print(f"  {'-'*88}")
+        print(f"  {'-' * 88}")
         for ref in refs:
             label = KIND_LABELS.get(ref.kind, ref.kind.value)
             print(
@@ -191,7 +194,6 @@ def cmd_serve(args):
     serve(cfg, SOURCE_REGISTRY)
 
 
-
 def cmd_init(args):
     path = args.path
     if os.path.exists(path):
@@ -264,9 +266,7 @@ sources:
 def main():
     _register_builtin_sources()
 
-    parser = argparse.ArgumentParser(
-        description="corp-finance-monitor — 企业财报发现与更新系统"
-    )
+    parser = argparse.ArgumentParser(description="corp-finance-monitor — 企业财报发现与更新系统")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
 
     sub = parser.add_subparsers(dest="command", required=True)
@@ -274,8 +274,15 @@ def main():
     p_run = sub.add_parser("run", help="执行一轮发现-下载或持续轮询")
     p_run.add_argument("-c", "--config", default="config.yaml", help="Config path")
     p_run.add_argument("--tier", help="Run only one configured scheduling tier")
-    p_run.add_argument("--resume", action="store_true", default=True, help="Resume from last scan checkpoint (default: true)")
-    p_run.add_argument("--reset", action="store_true", help="Clear scan progress checkpoint before running")
+    p_run.add_argument(
+        "--resume",
+        action="store_true",
+        default=True,
+        help="Resume from last scan checkpoint (default: true)",
+    )
+    p_run.add_argument(
+        "--reset", action="store_true", help="Clear scan progress checkpoint before running"
+    )
     p_run.add_argument("-v", "--verbose", action="store_true")
 
     p_sync = sub.add_parser("sync", help="执行一轮同步，可选指定source和日期窗口")
@@ -289,8 +296,15 @@ def main():
             "Use 'full' for a full sync ignoring date filters."
         ),
     )
-    p_sync.add_argument("--resume", action="store_true", default=True, help="Resume from last scan checkpoint (default: true)")
-    p_sync.add_argument("--reset", action="store_true", help="Clear scan progress checkpoint before syncing")
+    p_sync.add_argument(
+        "--resume",
+        action="store_true",
+        default=True,
+        help="Resume from last scan checkpoint (default: true)",
+    )
+    p_sync.add_argument(
+        "--reset", action="store_true", help="Clear scan progress checkpoint before syncing"
+    )
     p_sync.add_argument("-v", "--verbose", action="store_true")
 
     p_list = sub.add_parser("list", help="列出已存储的财报")

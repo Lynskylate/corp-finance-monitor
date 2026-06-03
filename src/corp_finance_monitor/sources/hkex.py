@@ -6,12 +6,18 @@ API: GET /search/titleSearchServlet.do
   - watchlist 模式 (默认): 按 config watchlist 逐股票 discover
   - full_market 模式: 通过 HKEXStockRegistry 获取全量港股列表批量 discover
 """
+
+from __future__ import annotations
+
 import json
 import logging
-from typing import List, Optional, Sequence
+from collections.abc import Sequence
+from contextlib import suppress
 
+from corp_finance_monitor.core.config import SourceConfig
+from corp_finance_monitor.core.model import Filing, FilingKind, FilingRef
 from corp_finance_monitor.core.source import AbstractSource
-from corp_finance_monitor.core.model import FilingRef, Filing, FilingKind
+
 from .base import http_get
 
 API_BASE = "https://www1.hkexnews.hk"
@@ -45,7 +51,7 @@ logger = logging.getLogger("cfm.source.hkex")
 
 
 class HKEXSource(AbstractSource):
-    def __init__(self, name: str, config: "SourceConfig"):
+    def __init__(self, name: str, config: SourceConfig):
         super().__init__(name, config)
         self._registry = None
 
@@ -56,6 +62,7 @@ class HKEXSource(AbstractSource):
     def _get_registry(self):
         if self._registry is None:
             from .hkex_registry import HKEXStockRegistry
+
             cache_dir = self.options.get("registry_cache_dir", "./data/.cfm_state")
             self._registry = HKEXStockRegistry(cache_dir=cache_dir)
             self._registry.initialize()
@@ -64,10 +71,10 @@ class HKEXSource(AbstractSource):
 
     def discover(
         self,
-        watchlist: Optional[List[dict]] = None,
-        since: Optional[str] = None,
-        only_stock_codes: Optional[Sequence[str]] = None,
-    ) -> List[FilingRef]:
+        watchlist: list[dict] | None = None,
+        since: str | None = None,
+        only_stock_codes: Sequence[str] | None = None,
+    ) -> list[FilingRef]:
         if self._full_market:
             return self._discover_full_market(
                 since=since,
@@ -77,11 +84,11 @@ class HKEXSource(AbstractSource):
 
     def _discover_watchlist(
         self,
-        watchlist: Optional[List[dict]] = None,
-        since: Optional[str] = None,
-    ) -> List[FilingRef]:
+        watchlist: list[dict] | None = None,
+        since: str | None = None,
+    ) -> list[FilingRef]:
         refs = []
-        for entry in (watchlist or self.watchlist):
+        for entry in watchlist or self.watchlist:
             stock = entry.get("stock", "")
             kinds = entry.get("kinds", ["annual", "interim"])
             refs.extend(self._discover_single_stock(stock, kinds, since))
@@ -89,22 +96,20 @@ class HKEXSource(AbstractSource):
 
     def _discover_full_market(
         self,
-        since: Optional[str] = None,
-        only_stock_codes: Optional[Sequence[str]] = None,
-    ) -> List[FilingRef]:
-        refs: List[FilingRef] = []
+        since: str | None = None,
+        only_stock_codes: Sequence[str] | None = None,
+    ) -> list[FilingRef]:
+        refs: list[FilingRef] = []
         try:
             registry = self._get_registry()
         except Exception as exc:
-            logger.error(
-                "Failed to initialize HKEX stock registry: %s", exc
-            )
+            logger.error("Failed to initialize HKEX stock registry: %s", exc)
             return refs
 
         stocks = registry.get_hk_stocks()
 
         if only_stock_codes:
-            allowed = {code for code in only_stock_codes}
+            allowed = set(only_stock_codes)
             stocks = [entry for entry in stocks if entry.stock_code in allowed]
 
         limit = int(self.options.get("full_market_limit", 0) or 0)
@@ -113,22 +118,19 @@ class HKEXSource(AbstractSource):
 
         kinds = self.options.get("kinds", ["annual", "interim"])
         for entry in stocks:
-            refs.extend(
-                self._discover_single_stock(entry.stock_code, kinds, since)
-            )
+            refs.extend(self._discover_single_stock(entry.stock_code, kinds, since))
 
         return refs
 
     def _discover_single_stock(
         self,
         stock: str,
-        kinds: List[str],
-        since: Optional[str] = None,
-    ) -> List[FilingRef]:
+        kinds: list[str],
+        since: str | None = None,
+    ) -> list[FilingRef]:
         from datetime import datetime as dt
 
-        refs: List[FilingRef] = []
-        stock_code = stock.zfill(5)
+        refs: list[FilingRef] = []
 
         try:
             stock_id = _fetch_stock_id(stock)
@@ -139,10 +141,7 @@ class HKEXSource(AbstractSource):
             t2 = T2_MAP.get(kind)
             if not t2:
                 continue
-            if kind == "prospectus":
-                t1 = T1_LISTING
-            else:
-                t1 = T1_FINANCIAL
+            t1 = T1_LISTING if kind == "prospectus" else T1_FINANCIAL
 
             from_date = "20100101"
             to_date = dt.utcnow().strftime("%Y%m%d")
@@ -185,10 +184,8 @@ class HKEXSource(AbstractSource):
                 date_raw = r.get("DATE_TIME", "")
                 date = date_raw.split(" ")[0] if date_raw else ""
                 if date:
-                    try:
+                    with suppress(ValueError):
                         date = dt.strptime(date, "%d/%m/%Y").strftime("%Y-%m-%d")
-                    except ValueError:
-                        pass
 
                 pdf_url = f"{API_BASE}{file_link}" if file_link else ""
 
@@ -226,7 +223,7 @@ class HKEXSource(AbstractSource):
                         return kind
         return FilingKind.OTHER
 
-    def fetch(self, ref: FilingRef) -> Optional[Filing]:
+    def fetch(self, ref: FilingRef) -> Filing | None:
         if not ref.url:
             return None
         try:

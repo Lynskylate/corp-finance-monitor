@@ -1,13 +1,13 @@
 from __future__ import annotations
+
 import os
 import sqlite3
 import threading
 from pathlib import Path
-from typing import List, Optional
 
-from corp_finance_monitor.core.model import FilingRef, Filing, FilingKind
-from corp_finance_monitor.core.storage import AbstractStorage
 from corp_finance_monitor.core.config import StorageConfig
+from corp_finance_monitor.core.model import Filing, FilingKind, FilingRef
+from corp_finance_monitor.core.storage import AbstractStorage
 
 
 class DiskStorage(AbstractStorage):
@@ -29,7 +29,7 @@ class DiskStorage(AbstractStorage):
     def __init__(self, config: StorageConfig):
         self.base_dir = config.base_dir or "./data"
         self.filings_dir = os.path.join(self.base_dir, "filings")
-        self._meta_db: Optional[sqlite3.Connection] = None
+        self._meta_db: sqlite3.Connection | None = None
         self._lock = threading.RLock()
 
     def initialize(self):
@@ -126,7 +126,7 @@ class DiskStorage(AbstractStorage):
             )
             self._meta_db.commit()
 
-    def get(self, ref: FilingRef) -> Optional[Filing]:
+    def get(self, ref: FilingRef) -> Filing | None:
         path = self.get_path(ref) or self._build_path(ref)
 
         if os.path.exists(path) and os.path.getsize(path) > 100:
@@ -135,7 +135,7 @@ class DiskStorage(AbstractStorage):
             return Filing(ref=ref, content=content, stored_path=path)
         return None
 
-    def get_path(self, ref: FilingRef) -> Optional[str]:
+    def get_path(self, ref: FilingRef) -> str | None:
         if self._meta_db:
             with self._lock:
                 cursor = self._meta_db.execute(
@@ -150,7 +150,7 @@ class DiskStorage(AbstractStorage):
             return candidate
         return None
 
-    def find_ref(self, source: str, source_id: str) -> Optional[FilingRef]:
+    def find_ref(self, source: str, source_id: str) -> FilingRef | None:
         if not self._meta_db:
             return None
         with self._lock:
@@ -178,11 +178,11 @@ class DiskStorage(AbstractStorage):
 
     def _build_ref_filters(
         self,
-        source: Optional[str] = None,
-        stock_code: Optional[str] = None,
-        kind: Optional[FilingKind] = None,
-        since: Optional[str] = None,
-        exchange: Optional[str] = None,
+        source: str | None = None,
+        stock_code: str | None = None,
+        kind: FilingKind | None = None,
+        since: str | None = None,
+        exchange: str | None = None,
     ) -> tuple[str, list[object]]:
         clauses: list[str] = []
         params: list[object] = []
@@ -217,11 +217,7 @@ class DiskStorage(AbstractStorage):
                     clauses.append("stock_code LIKE ?")
                     params.append(f"{prefixes[0]}%")
                 else:
-                    clauses.append(
-                        "("
-                        + " OR ".join("stock_code LIKE ?" for _ in prefixes)
-                        + ")"
-                    )
+                    clauses.append("(" + " OR ".join("stock_code LIKE ?" for _ in prefixes) + ")")
                     for p in prefixes:
                         params.append(f"{p}%")
             elif exchange == "HKEX":
@@ -231,14 +227,14 @@ class DiskStorage(AbstractStorage):
 
     def list_refs(
         self,
-        source: Optional[str] = None,
-        stock_code: Optional[str] = None,
-        kind: Optional[FilingKind] = None,
-        since: Optional[str] = None,
-        limit: Optional[int] = None,
+        source: str | None = None,
+        stock_code: str | None = None,
+        kind: FilingKind | None = None,
+        since: str | None = None,
+        limit: int | None = None,
         offset: int = 0,
-        exchange: Optional[str] = None,
-    ) -> List[FilingRef]:
+        exchange: str | None = None,
+    ) -> list[FilingRef]:
         if not self._meta_db:
             return []
         if offset < 0:
@@ -272,8 +268,11 @@ class DiskStorage(AbstractStorage):
         for row in rows:
             refs.append(
                 FilingRef(
-                    source=row["source"], source_id=row["source_id"], stock_code=row["stock_code"] or "",
-                    stock_name=row["stock_name"] or "", title=row["title"] or "",
+                    source=row["source"],
+                    source_id=row["source_id"],
+                    stock_code=row["stock_code"] or "",
+                    stock_name=row["stock_name"] or "",
+                    title=row["title"] or "",
                     kind=FilingKind(row["kind"]) if row["kind"] else FilingKind.OTHER,
                     published_at=row["published_at"] or "",
                     url=row["url"] or "",
@@ -284,11 +283,11 @@ class DiskStorage(AbstractStorage):
 
     def count_refs(
         self,
-        source: Optional[str] = None,
-        stock_code: Optional[str] = None,
-        kind: Optional[FilingKind] = None,
-        since: Optional[str] = None,
-        exchange: Optional[str] = None,
+        source: str | None = None,
+        stock_code: str | None = None,
+        kind: FilingKind | None = None,
+        since: str | None = None,
+        exchange: str | None = None,
     ) -> int:
         if not self._meta_db:
             return 0
@@ -305,16 +304,14 @@ class DiskStorage(AbstractStorage):
             row = self._meta_db.execute(query, params).fetchone()
         return int(row[0]) if row else 0
 
-    def list_distinct_sources(self) -> List[str]:
+    def list_distinct_sources(self) -> list[str]:
         if not self._meta_db:
             return []
         with self._lock:
-            rows = self._meta_db.execute(
-                "SELECT DISTINCT source FROM filings"
-            ).fetchall()
+            rows = self._meta_db.execute("SELECT DISTINCT source FROM filings").fetchall()
         return [row["source"] for row in rows]
 
-    def list_distinct_kinds(self) -> List[str]:
+    def list_distinct_kinds(self) -> list[str]:
         if not self._meta_db:
             return []
         with self._lock:
@@ -331,9 +328,7 @@ class DiskStorage(AbstractStorage):
             deleted = True
         if self._meta_db:
             with self._lock:
-                self._meta_db.execute(
-                    "DELETE FROM filings WHERE unique_key = ?", (ref.unique_key,)
-                )
+                self._meta_db.execute("DELETE FROM filings WHERE unique_key = ?", (ref.unique_key,))
                 self._meta_db.commit()
         return deleted
 
