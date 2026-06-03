@@ -110,7 +110,7 @@ class Engine:
         self,
         selected_sources: Optional[Sequence[str]] = None,
         since: Optional[str] = None,
-        resume: bool = False,
+        resume: bool = True,
         tier: Optional[str] = None,
     ) -> Dict[str, int]:
         """
@@ -121,8 +121,9 @@ class Engine:
                若为 None，则自动使用上次成功运行的时间。
                若从未运行过，则发现所有文件。
         resume: 若为 True，从上次断点继续扫描（跳过已完成股票）。
-                若为 False，清空进度重新开始。
-        返回统计数据: {discovered, fetched, failed}
+                 若为 False，扫描所有股票但不清空进度。
+                 要清空进度请使用 state_store.clear_scan_progress() 显式调用。
+         返回统计数据: {discovered, fetched, failed}
         """
         tier_cfg = self._get_tier_config(tier)
 
@@ -231,9 +232,6 @@ class Engine:
             and bool(scfg.options.get("full_market", False))
         ):
             use_full_market_progress = True
-
-        if use_full_market_progress and not resume and self.state_store:
-            self.state_store.clear_scan_progress(name)
 
         if source.name == "cninfo" and tier_stock_codes == []:
             logger.info("Source [%s]: no matching stocks for tier, skipping", name)

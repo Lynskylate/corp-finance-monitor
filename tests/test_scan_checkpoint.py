@@ -179,23 +179,26 @@ class EngineResumeTestCase(unittest.TestCase):
         self.assertEqual(stats["discovered"], 2)
         engine.close()
 
-    def test_no_resume_clears_progress(self):
-        """run_once(resume=False) clears scan_progress before starting."""
+    def test_no_resume_scans_all_without_skip(self):
+        """run_once(resume=False) scans all stocks without skipping checked ones."""
         cfg = self._make_config()
         engine = Engine(cfg, {"cninfo": _CheckpointSource})
         engine.initialize()
 
-        # Simulate stale progress
         engine.state_store.mark_scan_done("cninfo", "000001")
 
         source = engine.sources["cninfo"]
         source._registry = _FakeRegistry(["000001", "000002"])
 
         stats = engine.run_once(resume=False)
-        # All stocks should be discovered (progress was cleared)
         self.assertEqual(
             sorted(source.discovered_codes),
             ["000001", "000002"],
+        )
+        # Verify scan_progress was NOT cleared — clear is now explicit via --reset.
+        # After the run, progress was written for both stocks, so count is at least 1.
+        self.assertGreater(
+            engine.state_store.count_scan_progress("cninfo")[0], 0,
         )
         engine.close()
 

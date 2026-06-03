@@ -67,9 +67,11 @@ def cmd_run(args):
     _setup_logging(args.verbose)
     cfg, engine = _new_engine(args.config)
     try:
+        if getattr(args, "reset", False) and engine.state_store:
+            engine.state_store.clear_scan_progress()
+            print("Scan progress reset.")
         if cfg.engine.run_once:
             stats = engine.run_once(
-                resume=getattr(args, "resume", False),
                 tier=getattr(args, "tier", None),
             )
             print(f"\n{'='*50}")
@@ -85,14 +87,13 @@ def cmd_sync(args):
     _setup_logging(args.verbose)
     _, engine = _new_engine(args.config)
     try:
-        # --since modes:
-        #   not provided → None (auto-incremental from last successful run)
-        #   YYYY-MM-DD → explicit date window
+        if getattr(args, "reset", False) and engine.state_store:
+            engine.state_store.clear_scan_progress()
+            print("Scan progress reset.")
         since = args.since
         stats = engine.run_once(
             selected_sources=args.source or None,
             since=since,
-            resume=getattr(args, "resume", False),
         )
         print(json.dumps({"stats": stats}, ensure_ascii=False, indent=2))
     finally:
@@ -271,7 +272,7 @@ def main():
     p_run = sub.add_parser("run", help="执行一轮发现-下载或持续轮询")
     p_run.add_argument("-c", "--config", default="config.yaml", help="Config path")
     p_run.add_argument("--tier", help="Run only one configured scheduling tier")
-    p_run.add_argument("--resume", action="store_true", help="Resume from last scan checkpoint")
+    p_run.add_argument("--reset", action="store_true", help="Clear scan progress checkpoint before running")
     p_run.add_argument("-v", "--verbose", action="store_true")
 
     p_sync = sub.add_parser("sync", help="执行一轮同步，可选指定source和日期窗口")
@@ -285,7 +286,7 @@ def main():
             "Use 'full' for a full sync ignoring date filters."
         ),
     )
-    p_sync.add_argument("--resume", action="store_true", help="Resume from last scan checkpoint")
+    p_sync.add_argument("--reset", action="store_true", help="Clear scan progress checkpoint before syncing")
     p_sync.add_argument("-v", "--verbose", action="store_true")
 
     p_list = sub.add_parser("list", help="列出已存储的财报")
