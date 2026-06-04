@@ -309,7 +309,6 @@ class SchedulingEngineTestCase(unittest.TestCase):
     def test_hkex_full_market_discover_with_batched_codes(self):
         """HKEX source _discover_full_market filters by only_stock_codes from engine batching."""
         from corp_finance_monitor.sources.hkex import HKEXSource
-        from corp_finance_monitor.sources.hkex_registry import StockEntry as HKEXStockEntry
 
         cfg = self._make_config()
         cfg.sources["hkex"].options = {
