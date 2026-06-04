@@ -321,6 +321,7 @@ class SchedulingEngineTestCase(unittest.TestCase):
         codes = ["00700", "09988", "02318"]
         fake_registry = _FakeHKEXRegistry(codes)
         hkex._registry = fake_registry
+
         # Patch _discover_single_stock to avoid HTTP calls
         def _fake_discover_single(stock, kinds, since=None):
             return [
