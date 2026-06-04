@@ -195,14 +195,18 @@ class Engine:
         resume: bool,
         tier: SchedulingTierConfig | None,
     ) -> dict[str, int]:
-        refs = self._discover_refs(
+        refs_or_stats = self._discover_refs(
             name=name,
             source=source,
             since=since,
             concurrency=concurrency,
             resume=resume,
             tier=tier,
+            rate_limiter=rate_limiter,
         )
+        if isinstance(refs_or_stats, dict):
+            return refs_or_stats
+        refs = refs_or_stats
         logger.info("Source [%s]: discovered %d filing(s)", name, len(refs))
         if concurrency <= 1:
             return self._fetch_refs_serial(source, refs)
@@ -216,7 +220,8 @@ class Engine:
         concurrency: int,
         resume: bool,
         tier: SchedulingTierConfig | None,
-    ) -> list[FilingRef]:
+        rate_limiter: RateLimiter,
+    ) -> list[FilingRef] | dict[str, int]:
         scfg = self.config.sources[name]
         logger.info("Source [%s]: discovering...", name)
 
@@ -286,6 +291,8 @@ class Engine:
         workers = min(concurrency, len(batches))
         total_batches = len(batches)
         scanned_count = 0
+        streamed_stats = {"discovered": 0, "fetched": 0, "failed": 0}
+        stream_fetch = workers <= 1
 
         logger.info(
             "Source [%s]: batched discover in %d batch(es), batch_size=%d, workers=%d",
@@ -300,7 +307,13 @@ class Engine:
             for batch in batches:
                 try:
                     batch_refs = source.discover(watchlist, since, batch)
-                    refs.extend(batch_refs)
+                    if stream_fetch:
+                        batch_stats = self._fetch_refs_serial(source, batch_refs)
+                        streamed_stats["discovered"] += batch_stats["discovered"]
+                        streamed_stats["fetched"] += batch_stats["fetched"]
+                        streamed_stats["failed"] += batch_stats["failed"]
+                    else:
+                        refs.extend(batch_refs)
                     self._log_discovered_refs(name, batch_refs)
                     scanned_count += len(batch)
                     if use_full_market_progress and self.state_store:
@@ -314,6 +327,22 @@ class Engine:
                         batch[-1],
                         exc,
                     )
+                    recovered_refs, recovered_stats, recovered_count = self._recover_failed_batch(
+                        name=name,
+                        source=source,
+                        watchlist=watchlist,
+                        since=since,
+                        batch=batch,
+                        use_full_market_progress=use_full_market_progress,
+                        stream_fetch=stream_fetch,
+                    )
+                    if stream_fetch:
+                        streamed_stats["discovered"] += recovered_stats["discovered"]
+                        streamed_stats["fetched"] += recovered_stats["fetched"]
+                        streamed_stats["failed"] += recovered_stats["failed"]
+                    else:
+                        refs.extend(recovered_refs)
+                    scanned_count += recovered_count
                 completed_batches += 1
                 logger.info(
                     "Source [%s]: batch %d/%d done, %d/%d stocks scanned",
@@ -323,6 +352,8 @@ class Engine:
                     scanned_count,
                     len(stock_codes),
                 )
+            if stream_fetch:
+                return streamed_stats
             return refs
 
         with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -353,6 +384,17 @@ class Engine:
                         batch[-1],
                         exc,
                     )
+                    recovered_refs, _, recovered_count = self._recover_failed_batch(
+                        name=name,
+                        source=source,
+                        watchlist=watchlist,
+                        since=since,
+                        batch=batch,
+                        use_full_market_progress=use_full_market_progress,
+                        stream_fetch=False,
+                    )
+                    refs.extend(recovered_refs)
+                    scanned_count += recovered_count
                 completed_batches += 1
                 logger.info(
                     "Source [%s]: batch %d/%d done, %d/%d stocks scanned",
@@ -363,6 +405,55 @@ class Engine:
                     len(stock_codes),
                 )
         return refs
+
+    def _recover_failed_batch(
+        self,
+        name: str,
+        source: AbstractSource,
+        watchlist: list[dict],
+        since: str | None,
+        batch: Sequence[str],
+        use_full_market_progress: bool,
+        stream_fetch: bool,
+    ) -> tuple[list[FilingRef], dict[str, int], int]:
+        if len(batch) <= 1:
+            return [], {"discovered": 0, "fetched": 0, "failed": 0}, 0
+
+        logger.info(
+            "Source [%s]: retrying failed batch per stock (%s..%s, %d stock(s))",
+            name,
+            batch[0],
+            batch[-1],
+            len(batch),
+        )
+
+        recovered_refs: list[FilingRef] = []
+        recovered_stats = {"discovered": 0, "fetched": 0, "failed": 0}
+        recovered_count = 0
+
+        for code in batch:
+            try:
+                code_refs = source.discover(watchlist, since, [code])
+                self._log_discovered_refs(name, code_refs)
+                if stream_fetch:
+                    code_stats = self._fetch_refs_serial(source, code_refs)
+                    recovered_stats["discovered"] += code_stats["discovered"]
+                    recovered_stats["fetched"] += code_stats["fetched"]
+                    recovered_stats["failed"] += code_stats["failed"]
+                else:
+                    recovered_refs.extend(code_refs)
+                if use_full_market_progress and self.state_store:
+                    self.state_store.mark_scan_done(name, code)
+                recovered_count += 1
+            except Exception as exc:
+                logger.error(
+                    "Source [%s] discover fallback failed (%s): %s",
+                    name,
+                    code,
+                    exc,
+                )
+
+        return recovered_refs, recovered_stats, recovered_count
 
     def _fetch_refs_serial(
         self,

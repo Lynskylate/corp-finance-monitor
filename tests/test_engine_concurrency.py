@@ -66,6 +66,15 @@ class _BatchingCninfoSource(AbstractSource):
         return Filing(ref=ref, content=b"%PDF-1.4\nbatching\n")
 
 
+class _FailingSecondBatchCninfoSource(_BatchingCninfoSource):
+    def discover(self, watchlist=None, since=None, only_stock_codes=None):
+        codes = list(only_stock_codes or [])
+        self.discover_calls.append(codes)
+        if len(codes) > 1 and codes[0] == "000003":
+            raise TimeoutError("batch timeout")
+        return super().discover(watchlist=watchlist, since=since, only_stock_codes=only_stock_codes)
+
+
 class _TimingSource(AbstractSource):
     def __init__(self, name, config):
         super().__init__(name, config)
@@ -205,6 +214,46 @@ class EngineConcurrencyTestCase(unittest.TestCase):
             self.assertEqual(
                 source.discover_calls, [["000001", "000002"], ["000003", "000004"], ["000005"]]
             )
+        finally:
+            engine.close()
+
+    def test_serial_full_market_fetches_per_batch(self):
+        cfg = self._new_config(
+            "cninfo",
+            options={"full_market": True, "full_market_batch_size": 2},
+            concurrency=1,
+            delay=0,
+        )
+        engine = Engine(cfg, {"cninfo": _BatchingCninfoSource})
+        engine.initialize()
+        try:
+            stats = engine.run_once()
+            self.assertEqual(stats["discovered"], 5)
+            self.assertEqual(stats["fetched"], 5)
+            self.assertEqual(engine.state_store.list_runs(limit=1)[0].fetched, 5)
+            self.assertEqual(len(engine.storage.list_refs(source="cninfo")), 5)
+        finally:
+            engine.close()
+
+    def test_serial_full_market_keeps_prior_batches_when_later_batch_fails(self):
+        cfg = self._new_config(
+            "cninfo",
+            options={"full_market": True, "full_market_batch_size": 2},
+            concurrency=1,
+            delay=0,
+        )
+        engine = Engine(cfg, {"cninfo": _FailingSecondBatchCninfoSource})
+        engine.initialize()
+        try:
+            stats = engine.run_once()
+            self.assertEqual(stats["discovered"], 5)
+            self.assertEqual(stats["fetched"], 5)
+            self.assertEqual(stats["failed"], 0)
+            self.assertEqual(len(engine.storage.list_refs(source="cninfo")), 5)
+            done, _ = engine.state_store.count_scan_progress("cninfo")
+            self.assertEqual(done, 5)
+            self.assertIn(["000003"], engine.sources["cninfo"].discover_calls)
+            self.assertIn(["000004"], engine.sources["cninfo"].discover_calls)
         finally:
             engine.close()
 
