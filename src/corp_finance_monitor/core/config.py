@@ -8,11 +8,50 @@ import yaml
 
 
 @dataclass
+class FetchFilterConfig:
+    """Filter which discovered filings to actually fetch (download).
+
+    When set on a source, only filings matching *both* kinds and year_range
+    will be downloaded.  All other discovered filings are recorded in state
+    but skipped during the fetch step.
+
+    This is useful for prioritising recent filings before backfilling history.
+    """
+
+    kinds: list[str] = field(default_factory=list)
+    year_range: list[int] = field(default_factory=list)
+
+    def matches(self, ref) -> bool:
+        """Return True if *ref* passes the filter (AND logic)."""
+        from .model import FilingKind
+
+        if not self.kinds and not self.year_range:
+            return True
+
+        if self.kinds:
+            kind_values = {FilingKind(k) for k in self.kinds}
+            if ref.kind not in kind_values:
+                return False
+
+        if self.year_range:
+            try:
+                year = int((ref.published_at or "")[:4])
+            except (ValueError, IndexError):
+                return False
+            lo, hi = self.year_range[0], self.year_range[-1]
+            if not (lo <= year <= hi):
+                return False
+
+        return True
+
+
+@dataclass
 class SourceConfig:
     name: str
     enabled: bool = True
     options: dict[str, Any] = field(default_factory=dict)
     watchlist: list[dict[str, Any]] = field(default_factory=list)
+    fetch_filter: FetchFilterConfig | None = None
 
 
 @dataclass
@@ -107,11 +146,19 @@ class Config:
 
         sources_raw = raw.get("sources", {})
         for name, s_raw in sources_raw.items():
+            ff_raw = s_raw.get("fetch_filter")
+            fetch_filter = None
+            if ff_raw:
+                fetch_filter = FetchFilterConfig(
+                    kinds=list(ff_raw.get("kinds", [])),
+                    year_range=[int(y) for y in ff_raw.get("year_range", [])],
+                )
             cfg.sources[name] = SourceConfig(
                 name=name,
                 enabled=s_raw.get("enabled", True),
                 options=s_raw.get("options", {}),
                 watchlist=s_raw.get("watchlist", []),
+                fetch_filter=fetch_filter,
             )
 
         return cfg
