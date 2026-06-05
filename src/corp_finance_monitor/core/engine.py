@@ -9,7 +9,7 @@ from datetime import datetime
 
 from corp_finance_monitor.notifiers.registry import NotifierRegistry
 
-from .config import Config, SchedulingTierConfig
+from .config import Config, SchedulingTierConfig, SourceConfig
 from .model import FilingRef
 from .source import AbstractSource
 from .state import AbstractStateStore
@@ -208,6 +208,18 @@ class Engine:
             return refs_or_stats
         refs = refs_or_stats
         logger.info("Source [%s]: discovered %d filing(s)", name, len(refs))
+
+        # Apply fetch_filter if configured for this source
+        scfg = self.config.sources[name]
+        if scfg.fetch_filter:
+            before = len(refs)
+            refs = [r for r in refs if scfg.fetch_filter.matches(r)]
+            skipped = before - len(refs)
+            if skipped:
+                logger.info(
+                    "Source [%s]: fetch_filter skipped %d refs, %d remaining",
+                    name, skipped, len(refs),
+                )
         if concurrency <= 1:
             return self._fetch_refs_serial(source, refs)
         return self._fetch_refs_parallel(source, refs, concurrency, rate_limiter)
@@ -307,6 +319,9 @@ class Engine:
             for batch in batches:
                 try:
                     batch_refs = source.discover(watchlist, since, batch)
+                    # Apply fetch_filter for stream_fetch path
+                    if stream_fetch and scfg.fetch_filter:
+                        batch_refs = [r for r in batch_refs if scfg.fetch_filter.matches(r)]
                     if stream_fetch:
                         batch_stats = self._fetch_refs_serial(source, batch_refs)
                         streamed_stats["discovered"] += batch_stats["discovered"]
@@ -335,6 +350,7 @@ class Engine:
                         batch=batch,
                         use_full_market_progress=use_full_market_progress,
                         stream_fetch=stream_fetch,
+                        scfg=scfg,
                     )
                     if stream_fetch:
                         streamed_stats["discovered"] += recovered_stats["discovered"]
@@ -392,6 +408,7 @@ class Engine:
                         batch=batch,
                         use_full_market_progress=use_full_market_progress,
                         stream_fetch=False,
+                        scfg=scfg,
                     )
                     refs.extend(recovered_refs)
                     scanned_count += recovered_count
@@ -415,6 +432,7 @@ class Engine:
         batch: Sequence[str],
         use_full_market_progress: bool,
         stream_fetch: bool,
+        scfg: SourceConfig | None = None,
     ) -> tuple[list[FilingRef], dict[str, int], int]:
         if len(batch) <= 1:
             return [], {"discovered": 0, "fetched": 0, "failed": 0}, 0
@@ -435,6 +453,9 @@ class Engine:
             try:
                 code_refs = source.discover(watchlist, since, [code])
                 self._log_discovered_refs(name, code_refs)
+                # Apply fetch_filter for recovery stream_fetch path
+                if stream_fetch and scfg and scfg.fetch_filter:
+                    code_refs = [r for r in code_refs if scfg.fetch_filter.matches(r)]
                 if stream_fetch:
                     code_stats = self._fetch_refs_serial(source, code_refs)
                     recovered_stats["discovered"] += code_stats["discovered"]
