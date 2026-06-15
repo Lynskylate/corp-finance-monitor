@@ -70,6 +70,7 @@ def cmd_query(args):
     """Query cninfo announcements directly (no storage/engine needed)."""
     import json as _json
     from urllib.request import Request, urlopen
+    from urllib.parse import urlencode
     from urllib.error import URLError
     from datetime import datetime
 
@@ -80,7 +81,8 @@ def cmd_query(args):
     exclude_terms = args.exclude or []
 
     while len(found) < (args.limit or 50):
-        payload = _json.dumps({
+        # cninfo API requires form-encoded body (not JSON) for accurate searchkey matching
+        payload = urlencode({
             "pageNum": page,
             "pageSize": page_size,
             "column": "szse",
@@ -100,7 +102,7 @@ def cmd_query(args):
         req = Request(
             "https://www.cninfo.com.cn/new/hisAnnouncement/query",
             data=payload,
-            headers={"Content-Type": "application/json", "User-Agent": "cfm-query/1.0"},
+            headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": "cfm-query/1.0"},
             method="POST",
         )
         try:
