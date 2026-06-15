@@ -66,6 +66,90 @@ def _new_engine(config_path: str) -> tuple[Config, Engine]:
     return cfg, engine
 
 
+def cmd_query(args):
+    """Query cninfo announcements directly (no storage/engine needed)."""
+    import json as _json
+    from urllib.request import Request, urlopen
+    from urllib.parse import urlencode
+    from urllib.error import URLError
+    from datetime import datetime
+
+    page = 1
+    page_size = min(args.limit or 50, 100)
+    found: list[dict] = []
+    seen: set[str] = set()
+    exclude_terms = args.exclude or []
+
+    while len(found) < (args.limit or 50):
+        # cninfo API requires form-encoded body (not JSON) for accurate searchkey matching
+        payload = urlencode({
+            "pageNum": page,
+            "pageSize": page_size,
+            "column": "szse",
+            "tabName": "fulltext",
+            "plate": "",
+            "stock": "",
+            "searchkey": args.search or "",
+            "secid": "",
+            "category": "",
+            "trade": "",
+            "seDate": args.since + "~" + (args.until or "2099-12-31") if args.since else "",
+            "sortName": "",
+            "sortType": "",
+            "isHLtitle": True,
+        }).encode()
+
+        req = Request(
+            "https://www.cninfo.com.cn/new/hisAnnouncement/query",
+            data=payload,
+            headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": "cfm-query/1.0"},
+            method="POST",
+        )
+        try:
+            with urlopen(req, timeout=15) as resp:
+                data = _json.loads(resp.read())
+        except URLError as e:
+            print(f"API error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+        announcements = data.get("announcements") or []
+        if not announcements:
+            break
+
+        for ann in announcements:
+            title = ann.get("announcementTitle", "")
+            ann_id = ann.get("announcementId", "")
+            if ann_id in seen:
+                continue
+            # Exclude noise
+            if any(term in title for term in exclude_terms):
+                continue
+            seen.add(ann_id)
+            found.append(ann)
+            if len(found) >= (args.limit or 50):
+                break
+
+        page += 1
+        if page > 20:  # Safety limit
+            break
+
+    if args.json:
+        print(_json.dumps(found, ensure_ascii=False, indent=2))
+        return
+
+    print(f"\nCninfo announcements ({len(found)}):")
+    print(f"  {'Code':<8s} {'Name':<12s} {'Date':<12s} {'Title'}")
+    print(f"  {'-' * 90}")
+    for ann in found:
+        code = ann.get("secCode", "")[:8]
+        name = ann.get("secName", "")[:12]
+        ts = ann.get("announcementTime", 0) or 0
+        date = datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d") if ts else ""
+        title = ann.get("announcementTitle", "")[:60]
+        print(f"  {code:<8s} {name:<12s} {date:<12s} {title}")
+    print()
+
+
 def cmd_run(args):
     _setup_logging(args.verbose)
     cfg, engine = _new_engine(args.config)
@@ -347,6 +431,14 @@ def main():
     p_init = sub.add_parser("init", help="初始化配置文件")
     p_init.add_argument("path", nargs="?", default="config.yaml", help="Output path")
 
+    p_query = sub.add_parser("query", help="查询 cninfo 公告（不需要配置文件）")
+    p_query.add_argument("--search", help="搜索关键词，如 '半年度业绩预告'")
+    p_query.add_argument("--since", help="起始日期 YYYY-MM-DD")
+    p_query.add_argument("--until", help="截止日期 YYYY-MM-DD")
+    p_query.add_argument("--exclude", action="append", help="排除含此关键词的公告（可重复）")
+    p_query.add_argument("--limit", type=int, default=50, help="最大返回数（默认 50）")
+    p_query.add_argument("--json", action="store_true", help="输出 JSON 格式")
+
     args = parser.parse_args()
 
     if args.command == "run":
@@ -363,6 +455,8 @@ def main():
         cmd_serve(args)
     elif args.command == "init":
         cmd_init(args)
+    elif args.command == "query":
+        cmd_query(args)
 
 
 if __name__ == "__main__":
