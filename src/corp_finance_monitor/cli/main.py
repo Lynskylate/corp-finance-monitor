@@ -71,6 +71,7 @@ def cmd_query(args):
     import json as _json
     from urllib.request import Request, urlopen
     from urllib.error import URLError
+    from datetime import datetime
 
     page = 1
     page_size = min(args.limit or 50, 100)
@@ -140,7 +141,8 @@ def cmd_query(args):
     for ann in found:
         code = ann.get("secCode", "")[:8]
         name = ann.get("secName", "")[:12]
-        date = (ann.get("announcementTime") or "")[:10]
+        ts = ann.get("announcementTime", 0) or 0
+        date = datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d") if ts else ""
         title = ann.get("announcementTitle", "")[:60]
         print(f"  {code:<8s} {name:<12s} {date:<12s} {title}")
     print()
