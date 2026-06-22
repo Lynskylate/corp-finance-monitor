@@ -146,6 +146,29 @@ class TestCategoryMap(unittest.TestCase):
         for kind in ("annual", "semi", "q1", "q3"):
             self.assertIn(kind, CATEGORY_MAP)
 
+    def test_forecast_in_category_map(self):
+        self.assertIn("forecast", CATEGORY_MAP)
+
+
+class TestForecastClassification(unittest.TestCase):
+    """业绩预告 — must win over semi/annual when title contains both."""
+
+    def test_semi_forecast(self):
+        # "半年度业绩预告" contains both "半年度" and "业绩预告" → FORECAST wins
+        self.assertEqual(
+            _detect_kind("2026年半年度业绩预告"), FilingKind.FORECAST
+        )
+
+    def test_annual_forecast(self):
+        self.assertEqual(
+            _detect_kind("2026年年度业绩预告"), FilingKind.FORECAST
+        )
+
+    def test_forecast_with_company_prefix(self):
+        self.assertEqual(
+            _detect_kind("卫星化学：2026年半年度业绩预告"), FilingKind.FORECAST
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
