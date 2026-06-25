@@ -149,6 +149,9 @@ class TestCategoryMap(unittest.TestCase):
     def test_forecast_in_category_map(self):
         self.assertIn("forecast", CATEGORY_MAP)
 
+    def test_prospectus_in_category_map(self):
+        self.assertIn("prospectus", CATEGORY_MAP)
+
 
 class TestForecastClassification(unittest.TestCase):
     """业绩预告 — must win over semi/annual when title contains both."""
@@ -167,6 +170,43 @@ class TestForecastClassification(unittest.TestCase):
     def test_forecast_with_company_prefix(self):
         self.assertEqual(
             _detect_kind("卫星化学：2026年半年度业绩预告"), FilingKind.FORECAST
+        )
+
+
+class TestProspectusClassification(unittest.TestCase):
+    """招股说明书 — IPO prospectus for SZSE via cninfo."""
+
+    def test_plain_prospectus(self):
+        self.assertEqual(_detect_kind("招股说明书"), FilingKind.PROSPECTUS)
+
+    def test_ipo_prospectus_long_form(self):
+        self.assertEqual(
+            _detect_kind("首次公开发行股票并在主板上市招股说明书"),
+            FilingKind.PROSPECTUS,
+        )
+
+    def test_prospectus_with_company_prefix(self):
+        self.assertEqual(
+            _detect_kind("臻宝科技首次公开发行股票并在科创板上市招股说明书"),
+            FilingKind.PROSPECTUS,
+        )
+
+    def test_h_share_prospectus_excluded(self):
+        # H股招股说明书 → OTHER (not A-share IPO)
+        self.assertEqual(
+            _detect_kind("关于刊发H股招股说明书的公告"), FilingKind.OTHER
+        )
+
+    def test_prospectus_correction_excluded(self):
+        # 招股说明书更正 → OTHER
+        self.assertEqual(
+            _detect_kind("招股说明书（更正后）"), FilingKind.OTHER
+        )
+
+    def test_prospectus_summary_excluded(self):
+        # 招股说明书摘要 → OTHER
+        self.assertEqual(
+            _detect_kind("招股说明书摘要"), FilingKind.OTHER
         )
 
 
