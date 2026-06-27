@@ -26,13 +26,15 @@ logger = logging.getLogger("cfm.source.cninfo")
 
 API_URL = "https://www.cninfo.com.cn/new/hisAnnouncement/query"
 PDF_BASE = "https://static.cninfo.com.cn"
-ALL_KINDS = "category_ndbg_szsh;category_bndbg_szsh;category_yjdbg_szsh;category_sjdbg_szsh"
+ALL_KINDS = "category_ndbg_szsh;category_bndbg_szsh;category_yjdbg_szsh;category_sjdbg_szsh;category_yjyg_szsh;category_zf_szsh"
 
 CATEGORY_MAP = {
     "annual": "category_ndbg_szsh",
     "semi": "category_bndbg_szsh",
     "q1": "category_yjdbg_szsh",
     "q3": "category_sjdbg_szsh",
+    "forecast": "category_yjyg_szsh",
+    "prospectus": "category_zf_szsh",
 }
 
 
@@ -43,6 +45,10 @@ def _detect_kind(title: str) -> FilingKind:
     #   * "年度报告摘要"                  -> OTHER (年报摘要被排除)
     # Rationale: 半年报披露窗口短, 摘要与正文差异较小, 工程上归入同一类
     # 便于下游按 kind 拉取; 年报摘要与年报正文差异大, 单独归类避免误用。
+    if "业绩预告" in title:
+        return FilingKind.FORECAST
+    if "招股说明书" in title and "H股" not in title and "更正" not in title and "摘要" not in title:
+        return FilingKind.PROSPECTUS
     if "半年度报告" in title or "中期报告" in title:
         return FilingKind.SEMI
     if "一季度报告" in title or "第一季度" in title:
