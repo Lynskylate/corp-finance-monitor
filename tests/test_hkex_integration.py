@@ -47,9 +47,7 @@ class _HKEXIntegrationSource(AbstractSource):
         super().__init__(name, config)
         self.discover_calls = []
         self.fetched_refs = []
-        self._registry = _FakeHKEXRegistry(
-            ["00700", "09988", "02318", "01299", "00941"]
-        )
+        self._registry = _FakeHKEXRegistry(["00700", "09988", "02318", "01299", "00941"])
 
     def _get_registry(self):
         return self._registry
@@ -182,6 +180,7 @@ class HKEXIntegrationTestCase(unittest.TestCase):
 
             # Check scan_progress was persisted in state DB
             import sqlite3
+
             db_path = os.path.join(self.tmpdir, "data", ".cfm_state", "state.db")
             conn = sqlite3.connect(db_path)
             rows = conn.execute(

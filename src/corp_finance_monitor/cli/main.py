@@ -69,10 +69,10 @@ def _new_engine(config_path: str) -> tuple[Config, Engine]:
 def cmd_query(args):
     """Query cninfo announcements directly (no storage/engine needed)."""
     import json as _json
-    from urllib.request import Request, urlopen
-    from urllib.parse import urlencode
-    from urllib.error import URLError
     from datetime import datetime
+    from urllib.error import URLError
+    from urllib.parse import urlencode
+    from urllib.request import Request, urlopen
 
     page = 1
     page_size = min(args.limit or 50, 100)
@@ -82,27 +82,32 @@ def cmd_query(args):
 
     while len(found) < (args.limit or 50):
         # cninfo API requires form-encoded body (not JSON) for accurate searchkey matching
-        payload = urlencode({
-            "pageNum": page,
-            "pageSize": page_size,
-            "column": "szse",
-            "tabName": "fulltext",
-            "plate": "",
-            "stock": "",
-            "searchkey": args.search or "",
-            "secid": "",
-            "category": "",
-            "trade": "",
-            "seDate": args.since + "~" + (args.until or "2099-12-31") if args.since else "",
-            "sortName": "",
-            "sortType": "",
-            "isHLtitle": True,
-        }).encode()
+        payload = urlencode(
+            {
+                "pageNum": page,
+                "pageSize": page_size,
+                "column": "szse",
+                "tabName": "fulltext",
+                "plate": "",
+                "stock": "",
+                "searchkey": args.search or "",
+                "secid": "",
+                "category": "",
+                "trade": "",
+                "seDate": args.since + "~" + (args.until or "2099-12-31") if args.since else "",
+                "sortName": "",
+                "sortType": "",
+                "isHLtitle": True,
+            }
+        ).encode()
 
         req = Request(
             "https://www.cninfo.com.cn/new/hisAnnouncement/query",
             data=payload,
-            headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": "cfm-query/1.0"},
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "cfm-query/1.0",
+            },
             method="POST",
         )
         try:
