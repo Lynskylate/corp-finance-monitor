@@ -201,13 +201,14 @@ class TestCninfoSourceFullMarketMode(unittest.TestCase):
 
     @patch("corp_finance_monitor.sources.cninfo.http_post")
     @patch("corp_finance_monitor.sources.stock_registry.http_get")
-    def test_full_market_excludes_non_a_shares(self, mock_registry_get, mock_post):
-        """full_market only scans A-shares, not B-shares."""
+    def test_full_market_includes_domestic_equity(self, mock_registry_get, mock_post):
+        """full_market scans 境内权益: A股 + B股 + CDR (非精确过滤 A股)."""
         mock_reg_resp = MagicMock()
         mock_reg_resp.json.return_value = {
             "stockList": [
                 {"code": "000001", "orgId": "gssz0000001", "category": "A股", "zwjc": "平安银行"},
                 {"code": "200002", "orgId": "gssz0000002", "category": "B股", "zwjc": "万科B"},
+                {"code": "689009", "orgId": "9900037993", "category": "CDR", "zwjc": "九号公司"},
             ]
         }
         mock_registry_get.return_value = mock_reg_resp
@@ -222,9 +223,11 @@ class TestCninfoSourceFullMarketMode(unittest.TestCase):
             )
             refs = source.discover()
 
-            # Only the A-share stock should produce a ref
-            self.assertEqual(len(refs), 1)
-            self.assertEqual(refs[0].stock_code, "000001")
+            # A股/B股/CDR 每只都应产生 ref（B股/CDR 曾被精确过滤漏扫）
+            self.assertEqual(
+                sorted(r.stock_code for r in refs),
+                ["000001", "200002", "689009"],
+            )
             source.close()
 
 

@@ -103,6 +103,8 @@ def create_app(config: Config, source_registry: dict[str, type]) -> FastAPI:
         if limit < 0 or offset < 0:
             raise HTTPException(status_code=400, detail="limit_offset_must_be_non_negative")
         filter_kind = FilingKind(kind) if kind else None
+        # BSE 新旧码归一：920xxx 查询展开为共享 orgId 的旧码组（8xx/4xx）
+        resolved_codes = engine.resolve_stock_codes(stock_code) if stock_code else None
         refs = engine.storage.list_refs(
             source=source,
             stock_code=stock_code,
@@ -111,6 +113,7 @@ def create_app(config: Config, source_registry: dict[str, type]) -> FastAPI:
             limit=limit or None,
             offset=offset,
             exchange=exchange,
+            stock_codes=resolved_codes,
         )
         total = engine.storage.count_refs(
             source=source,
@@ -118,6 +121,7 @@ def create_app(config: Config, source_registry: dict[str, type]) -> FastAPI:
             kind=filter_kind,
             since=since,
             exchange=exchange,
+            stock_codes=resolved_codes,
         )
         return {
             "items": [serialize_ref(ref) for ref in refs],
