@@ -218,7 +218,9 @@ class Engine:
             if skipped:
                 logger.info(
                     "Source [%s]: fetch_filter skipped %d refs, %d remaining",
-                    name, skipped, len(refs),
+                    name,
+                    skipped,
+                    len(refs),
                 )
         if concurrency <= 1:
             return self._fetch_refs_serial(source, refs)
@@ -638,6 +640,28 @@ class Engine:
         if limit:
             stock_codes = stock_codes[:limit]
         return stock_codes
+
+    def resolve_stock_codes(self, stock_code: str) -> list[str]:
+        """将股票代码解析为 alias 代码组（BSE 新旧码归一，排序确定性）。
+
+        BSE 920 号段是旧 4/8 号段改码，registry 中同一公司新旧双码共享
+        orgId；cninfo 公告按旧码入库，查询侧用新码会查空。遍历已启用
+        source 的 registry 做 orgId 分组归一；无可用 registry 或未知代码
+        时返回 [stock_code]。
+        """
+        resolved: set[str] = set()
+        for source in self.sources.values():
+            try:
+                registry = getattr(source, "_get_registry", lambda: None)()
+                if registry is None:
+                    continue
+                get_aliases = getattr(registry, "get_code_aliases", None)
+                if get_aliases is None:
+                    continue
+                resolved.update(get_aliases(stock_code))
+            except Exception as exc:
+                logger.debug("alias resolution skipped for a source (%s): %s", stock_code, exc)
+        return sorted(resolved) if resolved else [stock_code]
 
     def _is_already_fetched(self, ref: FilingRef) -> bool:
         if self.state_store and self.state_store.has_filing(ref):

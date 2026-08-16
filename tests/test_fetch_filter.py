@@ -79,53 +79,94 @@ class FetchFilterConfigTest(unittest.TestCase):
 
     def test_empty_filter_matches_everything(self):
         ff = FetchFilterConfig()
-        ref = FilingRef(source="t", source_id="1", stock_code="000001",
-                        kind=FilingKind.ANNUAL, published_at="2025-01-01")
+        ref = FilingRef(
+            source="t",
+            source_id="1",
+            stock_code="000001",
+            kind=FilingKind.ANNUAL,
+            published_at="2025-01-01",
+        )
         self.assertTrue(ff.matches(ref))
 
     def test_kind_filter_passes_matching_kind(self):
         ff = FetchFilterConfig(kinds=["annual", "q1"])
-        ref = FilingRef(source="t", source_id="1", stock_code="000001",
-                        kind=FilingKind.ANNUAL, published_at="2025-01-01")
+        ref = FilingRef(
+            source="t",
+            source_id="1",
+            stock_code="000001",
+            kind=FilingKind.ANNUAL,
+            published_at="2025-01-01",
+        )
         self.assertTrue(ff.matches(ref))
 
     def test_kind_filter_rejects_non_matching_kind(self):
         ff = FetchFilterConfig(kinds=["annual", "q1"])
-        ref = FilingRef(source="t", source_id="1", stock_code="000001",
-                        kind=FilingKind.SEMI, published_at="2025-01-01")
+        ref = FilingRef(
+            source="t",
+            source_id="1",
+            stock_code="000001",
+            kind=FilingKind.SEMI,
+            published_at="2025-01-01",
+        )
         self.assertFalse(ff.matches(ref))
 
     def test_year_range_filter_passes_matching_year(self):
         ff = FetchFilterConfig(year_range=[2025, 2026])
-        ref = FilingRef(source="t", source_id="1", stock_code="000001",
-                        kind=FilingKind.ANNUAL, published_at="2025-03-30")
+        ref = FilingRef(
+            source="t",
+            source_id="1",
+            stock_code="000001",
+            kind=FilingKind.ANNUAL,
+            published_at="2025-03-30",
+        )
         self.assertTrue(ff.matches(ref))
 
     def test_year_range_filter_rejects_out_of_range(self):
         ff = FetchFilterConfig(year_range=[2025, 2026])
-        ref = FilingRef(source="t", source_id="1", stock_code="000001",
-                        kind=FilingKind.ANNUAL, published_at="2024-03-30")
+        ref = FilingRef(
+            source="t",
+            source_id="1",
+            stock_code="000001",
+            kind=FilingKind.ANNUAL,
+            published_at="2024-03-30",
+        )
         self.assertFalse(ff.matches(ref))
 
     def test_combined_kind_and_year_must_both_match(self):
         ff = FetchFilterConfig(kinds=["annual"], year_range=[2025, 2026])
         # kind matches but year doesn't
-        ref1 = FilingRef(source="t", source_id="1", stock_code="000001",
-                         kind=FilingKind.ANNUAL, published_at="2024-03-30")
+        ref1 = FilingRef(
+            source="t",
+            source_id="1",
+            stock_code="000001",
+            kind=FilingKind.ANNUAL,
+            published_at="2024-03-30",
+        )
         self.assertFalse(ff.matches(ref1))
         # year matches but kind doesn't
-        ref2 = FilingRef(source="t", source_id="2", stock_code="000001",
-                         kind=FilingKind.Q1, published_at="2025-04-28")
+        ref2 = FilingRef(
+            source="t",
+            source_id="2",
+            stock_code="000001",
+            kind=FilingKind.Q1,
+            published_at="2025-04-28",
+        )
         self.assertFalse(ff.matches(ref2))
         # both match
-        ref3 = FilingRef(source="t", source_id="3", stock_code="000001",
-                         kind=FilingKind.ANNUAL, published_at="2025-03-30")
+        ref3 = FilingRef(
+            source="t",
+            source_id="3",
+            stock_code="000001",
+            kind=FilingKind.ANNUAL,
+            published_at="2025-03-30",
+        )
         self.assertTrue(ff.matches(ref3))
 
     def test_missing_published_at_rejected_by_year_filter(self):
         ff = FetchFilterConfig(year_range=[2025, 2026])
-        ref = FilingRef(source="t", source_id="1", stock_code="000001",
-                        kind=FilingKind.ANNUAL, published_at="")
+        ref = FilingRef(
+            source="t", source_id="1", stock_code="000001", kind=FilingKind.ANNUAL, published_at=""
+        )
         self.assertFalse(ff.matches(ref))
 
 
@@ -195,9 +236,7 @@ class FetchFilterEngineTest(unittest.TestCase):
             engine.close()
 
     def test_filter_kind_only(self):
-        cfg = self._make_config(
-            fetch_filter=FetchFilterConfig(kinds=["annual"])
-        )
+        cfg = self._make_config(fetch_filter=FetchFilterConfig(kinds=["annual"]))
         engine = Engine(cfg, {"test": _MultiKindSource})
         engine.initialize()
         try:
@@ -209,9 +248,7 @@ class FetchFilterEngineTest(unittest.TestCase):
             engine.close()
 
     def test_filter_year_only(self):
-        cfg = self._make_config(
-            fetch_filter=FetchFilterConfig(year_range=[2025, 2026])
-        )
+        cfg = self._make_config(fetch_filter=FetchFilterConfig(year_range=[2025, 2026]))
         engine = Engine(cfg, {"test": _MultiKindSource})
         engine.initialize()
         try:

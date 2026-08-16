@@ -158,19 +158,13 @@ class TestForecastClassification(unittest.TestCase):
 
     def test_semi_forecast(self):
         # "半年度业绩预告" contains both "半年度" and "业绩预告" → FORECAST wins
-        self.assertEqual(
-            _detect_kind("2026年半年度业绩预告"), FilingKind.FORECAST
-        )
+        self.assertEqual(_detect_kind("2026年半年度业绩预告"), FilingKind.FORECAST)
 
     def test_annual_forecast(self):
-        self.assertEqual(
-            _detect_kind("2026年年度业绩预告"), FilingKind.FORECAST
-        )
+        self.assertEqual(_detect_kind("2026年年度业绩预告"), FilingKind.FORECAST)
 
     def test_forecast_with_company_prefix(self):
-        self.assertEqual(
-            _detect_kind("卫星化学：2026年半年度业绩预告"), FilingKind.FORECAST
-        )
+        self.assertEqual(_detect_kind("卫星化学：2026年半年度业绩预告"), FilingKind.FORECAST)
 
 
 class TestProspectusClassification(unittest.TestCase):
@@ -193,21 +187,15 @@ class TestProspectusClassification(unittest.TestCase):
 
     def test_h_share_prospectus_excluded(self):
         # H股招股说明书 → OTHER (not A-share IPO)
-        self.assertEqual(
-            _detect_kind("关于刊发H股招股说明书的公告"), FilingKind.OTHER
-        )
+        self.assertEqual(_detect_kind("关于刊发H股招股说明书的公告"), FilingKind.OTHER)
 
     def test_prospectus_correction_excluded(self):
         # 招股说明书更正 → OTHER
-        self.assertEqual(
-            _detect_kind("招股说明书（更正后）"), FilingKind.OTHER
-        )
+        self.assertEqual(_detect_kind("招股说明书（更正后）"), FilingKind.OTHER)
 
     def test_prospectus_summary_excluded(self):
         # 招股说明书摘要 → OTHER
-        self.assertEqual(
-            _detect_kind("招股说明书摘要"), FilingKind.OTHER
-        )
+        self.assertEqual(_detect_kind("招股说明书摘要"), FilingKind.OTHER)
 
 
 if __name__ == "__main__":

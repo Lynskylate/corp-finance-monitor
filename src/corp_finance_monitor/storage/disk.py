@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import threading
+from collections.abc import Sequence
 from pathlib import Path
 
 from corp_finance_monitor.core.config import StorageConfig
@@ -183,13 +184,19 @@ class DiskStorage(AbstractStorage):
         kind: FilingKind | None = None,
         since: str | None = None,
         exchange: str | None = None,
+        stock_codes: Sequence[str] | None = None,
     ) -> tuple[str, list[object]]:
         clauses: list[str] = []
         params: list[object] = []
         if source:
             clauses.append("source = ?")
             params.append(source)
-        if stock_code:
+        if stock_codes:
+            # 多代码过滤（BSE 新旧码 alias 归一，优先于单 stock_code）
+            placeholders = ",".join("?" for _ in stock_codes)
+            clauses.append(f"stock_code IN ({placeholders})")
+            params.extend(stock_codes)
+        elif stock_code:
             clauses.append("stock_code = ?")
             params.append(stock_code)
         if kind:
@@ -234,6 +241,7 @@ class DiskStorage(AbstractStorage):
         limit: int | None = None,
         offset: int = 0,
         exchange: str | None = None,
+        stock_codes: Sequence[str] | None = None,
     ) -> list[FilingRef]:
         if not self._meta_db:
             return []
@@ -251,6 +259,7 @@ class DiskStorage(AbstractStorage):
             kind=kind,
             since=since,
             exchange=exchange,
+            stock_codes=stock_codes,
         )
         query += where_clause
         query += " ORDER BY published_at DESC, source_id DESC"
@@ -288,6 +297,7 @@ class DiskStorage(AbstractStorage):
         kind: FilingKind | None = None,
         since: str | None = None,
         exchange: str | None = None,
+        stock_codes: Sequence[str] | None = None,
     ) -> int:
         if not self._meta_db:
             return 0
@@ -298,6 +308,7 @@ class DiskStorage(AbstractStorage):
             kind=kind,
             since=since,
             exchange=exchange,
+            stock_codes=stock_codes,
         )
         query += where_clause
         with self._lock:

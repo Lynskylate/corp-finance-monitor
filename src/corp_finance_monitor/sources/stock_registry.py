@@ -13,6 +13,7 @@ import logging
 import os
 import sqlite3
 import threading
+from collections.abc import Sequence
 from datetime import datetime, timezone
 
 from .base import http_get
@@ -20,6 +21,10 @@ from .base import http_get
 logger = logging.getLogger("cfm.stock_registry")
 
 STOCK_LIST_URL = "http://www.cninfo.com.cn/new/data/szse_stock.json"
+
+# 境内权益覆盖范围：A股 + B股 + CDR。
+# BSE 920 号段由旧 4/8 号段改码而来，registry 中新旧双码并存（共享 orgId）。
+DOMESTIC_EQUITY_CATEGORIES = ("A股", "B股", "CDR")
 
 
 def _infer_exchange(code: str) -> str:
@@ -82,6 +87,7 @@ class CninfoStockRegistry:
         self._ttl_hours = ttl_hours
         self._db_path = os.path.join(cache_dir, "stocks.db")
         self._conn: sqlite3.Connection | None = None
+        self._alias_map: dict[str, tuple[str, ...]] | None = None
         self._lock = threading.Lock()
 
     def initialize(self) -> None:
@@ -158,6 +164,7 @@ class CninfoStockRegistry:
         now = datetime.now(timezone.utc).isoformat()
         count = 0
         with self._lock:
+            self._alias_map = None  # 代码集已变，alias map 需重建
             self._conn.execute("DELETE FROM stocks")
             for item in stock_list:
                 code = (item.get("code") or "").strip()
@@ -192,6 +199,7 @@ class CninfoStockRegistry:
         self,
         exchange: str | None = None,
         category: str | None = None,
+        categories: Sequence[str] | None = None,
     ) -> list[StockEntry]:
         if not self._conn:
             return []
@@ -200,7 +208,12 @@ class CninfoStockRegistry:
         if exchange:
             query += " AND exchange = ?"
             params.append(exchange)
-        if category:
+        if categories:
+            # 多 category 过滤（优先于单 category）
+            placeholders = ",".join("?" for _ in categories)
+            query += f" AND category IN ({placeholders})"
+            params.extend(categories)
+        elif category:
             query += " AND category = ?"
             params.append(category)
         query += " ORDER BY stock_code"
@@ -220,11 +233,48 @@ class CninfoStockRegistry:
         ]
 
     def get_a_shares(self) -> list[StockEntry]:
-        return self.get_all(category="A股")
+        """境内权益全量列表：A股 + B股 + CDR。
+
+        历史上精确过滤 category='A股'，导致 79 家 B股（200xxx）与 CDR
+        （689xxx）从未进入 full-market 扫描。现按 DOMESTIC_EQUITY_CATEGORIES
+        覆盖（方法名保留以兼容既有调用方）。
+        """
+        return self.get_all(categories=DOMESTIC_EQUITY_CATEGORIES)
 
     def get_stock_codes(self) -> list[str]:
         """Return stock codes for all A-shares via a generic registry interface."""
         return [entry.stock_code for entry in self.get_a_shares()]
+
+    def get_code_aliases(self, stock_code: str) -> list[str]:
+        """返回与给定代码共享 orgId 的全部代码（含自身），排序保证确定性。
+
+        BSE 920 号段由旧 4/8 号段改码而来，registry 中同一公司新旧双码并存
+        （如 833454/920454 → gfbj0833454）。cninfo 公告按旧码返回，因此
+        查询侧需按 orgId 分组做新旧码归一。未知代码返回 [stock_code]。
+        """
+        if not self._conn:
+            return [stock_code]
+        with self._lock:
+            self._ensure_alias_map()
+            return list(self._alias_map.get(stock_code, (stock_code,)))
+
+    def _ensure_alias_map(self) -> None:
+        """惰性构建 orgId → 代码组 的 alias map（调用方需持 self._lock）。"""
+        if self._alias_map is not None:
+            return
+        alias_map: dict[str, tuple[str, ...]] = {}
+        rows = self._conn.execute(
+            "SELECT stock_code, org_id FROM stocks WHERE org_id != ''"
+        ).fetchall()
+        by_org: dict[str, list[str]] = {}
+        for row in rows:
+            by_org.setdefault(row["org_id"], []).append(row["stock_code"])
+        for codes in by_org.values():
+            if len(codes) > 1:
+                group = tuple(sorted(codes))
+                for code in group:
+                    alias_map[code] = group
+        self._alias_map = alias_map
 
     def count(self, exchange: str | None = None) -> int:
         if not self._conn:

@@ -234,6 +234,51 @@ class TestFilingsEndpoint(_ServerBase):
         ids = {it["source_id"] for it in items}
         self.assertIn("manual-001", ids)
 
+    def test_filings_stock_code_alias_expansion(self):
+        # BSE 920xxx 数据按旧码入库（cninfo 返回旧 secCode），查询侧按
+        # orgId alias 展开：stock_code=920454 应命中 833454 下的记录
+        alias_refs = [
+            FilingRef(
+                source="alias-test",
+                source_id=sid,
+                stock_code=code,
+                stock_name="同心传动",
+                title=f"2026年公告 {sid}",
+                kind=FilingKind.SEMI,
+                published_at=pub,
+                url="",
+            )
+            for sid, code, pub in [
+                ("old-001", "833454", "2026-04-10"),
+                ("old-002", "833454", "2026-04-20"),
+                ("new-001", "920454", "2026-04-15"),
+            ]
+        ]
+        for ref in alias_refs:
+            self.engine.storage.upsert_metadata(ref)
+
+        class _AliasRegistry:
+            def get_code_aliases(self, code):
+                if code in ("833454", "920454"):
+                    return ["833454", "920454"]
+                return [code]
+
+        class _AliasSource:
+            name = "alias-fake"
+
+            def _get_registry(self):
+                return _AliasRegistry()
+
+        self.engine.sources["alias-fake"] = _AliasSource()
+        try:
+            status, body = _http_get(self.base + "/api/filings?stock_code=920454")
+            self.assertEqual(status, 200)
+            self.assertEqual(body.get("total"), 3)
+            codes = {it["stock_code"] for it in body.get("items", [])}
+            self.assertEqual(codes, {"833454", "920454"})
+        finally:
+            del self.engine.sources["alias-fake"]
+
     def test_filing_detail_200(self):
         ref = FilingRef(
             source="fake",
