@@ -26,14 +26,21 @@ logger = logging.getLogger("cfm.source.cninfo")
 
 API_URL = "https://www.cninfo.com.cn/new/hisAnnouncement/query"
 PDF_BASE = "https://static.cninfo.com.cn"
-ALL_KINDS = "category_ndbg_szsh;category_bndbg_szsh;category_yjdbg_szsh;category_sjdbg_szsh;category_yjyg_szsh;category_zf_szsh"
+# NOTE: category slugs are pinned by test_cninfo_category_slug_contract.
+# 2026-08-16: cninfo silently renamed the forecast slug `category_yjyg_szsh` →
+# `category_yjygjxz_szsh` (业绩预告及修正); the old slug is IGNORED by the API
+# (returns unfiltered results when sent alone, contributes nothing when joined),
+# so a dead slug here means silently missing filings, not an API error.
+# `category_zf_szsh` (prospectus) also appears dead as of 2026-08-16 but is
+# out of active kinds; IPO prospectus goes through the dedicated sse source.
+ALL_KINDS = "category_ndbg_szsh;category_bndbg_szsh;category_yjdbg_szsh;category_sjdbg_szsh;category_yjygjxz_szsh;category_zf_szsh"
 
 CATEGORY_MAP = {
     "annual": "category_ndbg_szsh",
     "semi": "category_bndbg_szsh",
     "q1": "category_yjdbg_szsh",
     "q3": "category_sjdbg_szsh",
-    "forecast": "category_yjyg_szsh",
+    "forecast": "category_yjygjxz_szsh",
     "prospectus": "category_zf_szsh",
 }
 
