@@ -239,6 +239,31 @@ class Engine:
         scfg = self.config.sources[name]
         logger.info("Source [%s]: discovering...", name)
 
+        # Market-level incremental mode (scheduled loop only): discover new
+        # filings with a market-wide `since`-window query instead of walking
+        # per-stock checkpoints, which go permanently silent once bootstrap
+        # completes (scan_progress has no TTL). Opt-in via
+        # options.incremental_mode == "market"; requires a since window so
+        # bootstrap/full rescan still uses the per-stock path. This path
+        # never reads or writes scan_progress.
+        if (
+            tier is not None
+            and since is not None
+            and scfg.options.get("incremental_mode") == "market"
+            and hasattr(source, "discover_market")
+        ):
+            try:
+                refs = source.discover_market(since=since)
+                self._log_discovered_refs(name, refs)
+                return refs
+            except Exception as exc:
+                # Count as a FAILED run (not a clean empty round) so that
+                # last_successful_run_start does not advance past this
+                # window — otherwise the missed disclosures would be
+                # silently skipped by every later incremental round.
+                logger.error("Source [%s] market-level discover failed: %s", name, exc)
+                return {"discovered": 0, "fetched": 0, "failed": 1}
+
         tier_stock_codes = self._resolve_tier_stock_codes(name, source, tier)
         watchlist = self._resolve_source_watchlist(name, source, tier_stock_codes)
         use_full_market_progress = False

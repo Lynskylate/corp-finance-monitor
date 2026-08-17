@@ -44,6 +44,10 @@ CATEGORY_MAP = {
     "prospectus": "category_zf_szsh",
 }
 
+# Exchange columns queried by discover_market (market-wide incremental).
+# Overlapping results are deduped by announcementId.
+MARKET_COLUMNS = ("szse", "sse", "bj")
+
 
 def _detect_kind(title: str) -> FilingKind:
     # NOTE on intent: the rule below is intentionally asymmetric on purpose
@@ -246,6 +250,93 @@ class CninfoSource(AbstractSource):
                 break
             page += 1
 
+        return refs
+
+    def discover_market(self, since: str) -> list[FilingRef]:
+        """Market-wide incremental discover: query each exchange column once
+        with an seDate window and no per-stock filter.
+
+        This is the scheduled-loop counterpart to the per-stock checkpoint
+        scan (``_discover_full_market``): O(#columns) API calls per round
+        regardless of market size, so new disclosures are found on the next
+        round even when every stock is already marked done in scan_progress.
+
+        Why this exists: the per-stock scan is checkpoint-gated and has no
+        TTL — once bootstrap completes it goes permanently silent, and the
+        run loop discovered nothing market-wide from June to Aug 2026
+        (run_log: 8/1258 rounds non-zero, all 3-stock watchlist hits).
+
+        Contract:
+          * requires a `since` window — a windowless market query would pull
+            the entire announcement history; use the per-stock full scan for
+            bootstrap instead.
+          * never touches scan_progress (checkpoints belong to per-stock scans).
+          * dedupes by announcementId across columns (the same announcement
+            can appear in more than one column query).
+        """
+        if not since:
+            raise ValueError("discover_market requires a since window (YYYY-MM-DD)")
+
+        kinds = self.options.get("kinds", ["annual", "semi", "q1", "q3"])
+        category = ";".join(CATEGORY_MAP[k] for k in kinds if k in CATEGORY_MAP) or ALL_KINDS
+
+        from datetime import datetime as dt
+
+        se_date = f"{since}~{dt.utcnow().strftime('%Y-%m-%d')}"
+
+        refs: list[FilingRef] = []
+        seen: set[str] = set()
+        for column in MARKET_COLUMNS:
+            page = 1
+            while True:
+                data = {
+                    "pageNum": str(page),
+                    "pageSize": "30",
+                    "column": column,
+                    "tabName": "fulltext",
+                    "stock": "",
+                    "category": category,
+                    "seDate": se_date,
+                    "sortName": "",
+                    "sortType": "desc",
+                    "isHLtitle": "true",
+                }
+                headers = {
+                    "Referer": "https://www.cninfo.com.cn/new/disclosure",
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                }
+                resp = http_post(API_URL, data=data, headers=headers)
+                result = resp.json()
+                items = result.get("announcements") or []
+
+                for a in items:
+                    ann_id = str(a.get("announcementId", ""))
+                    code = str(a.get("secCode", "") or "")
+                    if not ann_id or ann_id in seen or not code:
+                        continue
+                    seen.add(ann_id)
+                    title = a.get("announcementTitle", "")
+                    adj_url = a.get("adjunctUrl", "")
+                    ts = a.get("announcementTime", 0)
+                    refs.append(
+                        FilingRef(
+                            source="cninfo",
+                            source_id=ann_id,
+                            stock_code=code,
+                            stock_name=a.get("secName", ""),
+                            title=title,
+                            kind=_detect_kind(title),
+                            published_at=parse_timestamp(ts),
+                            url=f"{PDF_BASE}/{adj_url.lstrip('/')}" if adj_url else "",
+                        )
+                    )
+
+                if not result.get("hasMore", False) or page >= 100:
+                    break
+                page += 1
+
+        logger.info("Market-level discover complete: %d refs in window since %s", len(refs), since)
         return refs
 
     def fetch(self, ref: FilingRef) -> Filing | None:
