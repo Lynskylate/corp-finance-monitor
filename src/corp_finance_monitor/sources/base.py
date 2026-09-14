@@ -5,12 +5,11 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
+# 2026-09-14: cninfo WAF 开始 403 任何含 AppleWebKit/Chrome 复合 token 的
+# 模板 UA（Chrome/125、Chrome/140、Edge/140 均被拒）；裸 Mozilla/5.0 短串
+# 携带站点 headers 实测 200。若再被封，先换 UA 串而非加伪装。
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/125.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
 }
 
 TIMEOUT = 30
