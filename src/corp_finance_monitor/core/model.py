@@ -12,7 +12,8 @@ class FilingKind(str, enum.Enum):
     Q1 = "q1"  # 一季报
     Q3 = "q3"  # 三季报
     PROSPECTUS = "prospectus"  # 招股说明书
-    FORECAST = "forecast"  # 业绩预告
+    FORECAST = "forecast"  # 业绩预告（含预增/预减/略增/略减/扭亏/续盈/续亏/预盈/预亏措辞变体）
+    EXPRESS = "express"  # 业绩快报
     ESG = "esg"  # ESG报告
     INTERIM = "interim"  # 中期报告（港股）
     QUARTERLY = "quarterly"  # 季度报告（港股）
@@ -26,6 +27,7 @@ KIND_LABELS = {
     FilingKind.Q3: "三季报",
     FilingKind.PROSPECTUS: "招股书",
     FilingKind.FORECAST: "业绩预告",
+    FilingKind.EXPRESS: "业绩快报",
     FilingKind.ESG: "ESG报告",
     FilingKind.INTERIM: "中期报告",
     FilingKind.QUARTERLY: "季度报告",

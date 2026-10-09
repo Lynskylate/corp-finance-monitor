@@ -48,6 +48,30 @@ CATEGORY_MAP = {
 # Overlapping results are deduped by announcementId.
 MARKET_COLUMNS = ("szse", "sse", "bj")
 
+# 业绩预告标题词族。SSE 主板公司惯用「业绩预增公告」等措辞而非「业绩预告」
+# 二字；2026-10-09 缺口事故：仅认「业绩预告」导致预增类公告落入 OTHER，被
+# 生产 fetch_filter（kinds 不含 other）在 fetch 前静默丢弃（4 件缺口，其中
+# 3 件预增、1 件快报）。全词表由 tests/test_cninfo_classification.py 钉死；
+# 增删词必须同步改测试，避免 Q1 季换一个措辞再漏一次。
+FORECAST_TITLE_MARKERS = (
+    "业绩预告",
+    "业绩预增",
+    "业绩预减",
+    "业绩预盈",
+    "业绩预亏",
+    "业绩略增",
+    "业绩略减",
+    "业绩扭亏",
+    "业绩续盈",
+    "业绩续亏",
+)
+
+# 业绩快报：独立类目 EXPRESS（不并入 forecast，保持 forecast 口径干净）。
+# 注意 discover 侧无需新增 category 查询：快报件与预告件同在
+# category_yjygjxz_szsh 类目下返回（2026-10-09 探测实证，见
+# tests/test_cninfo_classification.py 快报 fixture 的真实标题）。
+EXPRESS_TITLE_MARKERS = ("业绩快报",)
+
 
 def _detect_kind(title: str) -> FilingKind:
     # NOTE on intent: the rule below is intentionally asymmetric on purpose
@@ -56,8 +80,10 @@ def _detect_kind(title: str) -> FilingKind:
     #   * "年度报告摘要"                  -> OTHER (年报摘要被排除)
     # Rationale: 半年报披露窗口短, 摘要与正文差异较小, 工程上归入同一类
     # 便于下游按 kind 拉取; 年报摘要与年报正文差异大, 单独归类避免误用。
-    if "业绩预告" in title:
+    if any(marker in title for marker in FORECAST_TITLE_MARKERS):
         return FilingKind.FORECAST
+    if any(marker in title for marker in EXPRESS_TITLE_MARKERS):
+        return FilingKind.EXPRESS
     if "招股说明书" in title and "H股" not in title and "更正" not in title and "摘要" not in title:
         return FilingKind.PROSPECTUS
     if "半年度报告" in title or "中期报告" in title:
