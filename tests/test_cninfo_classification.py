@@ -167,6 +167,102 @@ class TestForecastClassification(unittest.TestCase):
         self.assertEqual(_detect_kind("卫星化学：2026年半年度业绩预告"), FilingKind.FORECAST)
 
 
+class TestForecastVariantClassification(unittest.TestCase):
+    """业绩预告措辞变体全词表 — 2026-10-09 SSE 主板缺口回归钉死。
+
+    沪市主板公司惯用「业绩预增公告」等措辞（不含「预告」二字）。修复前
+    仅认「业绩预告」，预增类落入 OTHER 被生产 fetch_filter 静默丢弃。
+    词表 = FORECAST_TITLE_MARKERS 全表；增删词必须同步改这里。
+    """
+
+    def test_full_variant_word_list(self):
+        variants = [
+            "业绩预告",
+            "业绩预增",
+            "业绩预减",
+            "业绩预盈",
+            "业绩预亏",
+            "业绩略增",
+            "业绩略减",
+            "业绩扭亏",
+            "业绩续盈",
+            "业绩续亏",
+        ]
+        # 词表与实现常量逐一对应（防实现/测试漂移）
+        from corp_finance_monitor.sources.cninfo import FORECAST_TITLE_MARKERS
+
+        self.assertEqual(set(FORECAST_TITLE_MARKERS), set(variants))
+        for v in variants:
+            self.assertEqual(
+                _detect_kind(f"2026年前三季度{v}公告"),
+                FilingKind.FORECAST,
+                f"variant {v} must classify as FORECAST",
+            )
+
+    def test_variant_with_correction_suffix(self):
+        # 修正/更正后缀变体同样归 forecast（包含式匹配）
+        self.assertEqual(
+            _detect_kind("2026年前三季度业绩预增公告的修正公告"),
+            FilingKind.FORECAST,
+        )
+        self.assertEqual(
+            _detect_kind("关于2026年半年度业绩预亏公告的更正公告"),
+            FilingKind.FORECAST,
+        )
+
+    def test_real_gap_titles_forecast(self):
+        # 2026-10-09 缺口的 3 件预增真实标题（announcementId 即验收判据）:
+        #   600521 华海药业 1225595334 / 600256 广汇能源 1225596445
+        #   605020 永和股份 1225597543
+        self.assertEqual(
+            _detect_kind("浙江华海药业股份有限公司2026年前三季度业绩预增公告"),
+            FilingKind.FORECAST,
+        )
+        self.assertEqual(
+            _detect_kind("广汇能源股份有限公司2026年前三季度业绩预增公告"),
+            FilingKind.FORECAST,
+        )
+        self.assertEqual(
+            _detect_kind("浙江永和制冷股份有限公司2026年前三季度业绩预增公告"),
+            FilingKind.FORECAST,
+        )
+
+
+class TestExpressClassification(unittest.TestCase):
+    """业绩快报 — 独立类目 EXPRESS，不并入 forecast。
+
+    快报件与预告件同在 category_yjygjxz_szsh 类目下返回（2026-10-09
+    探测实证），discover 侧无需新查询；分类侧必须单列，保证 forecast
+    口径干净（SuperMan G1 kind-aware 验收的前提）。
+    """
+
+    def test_plain_express(self):
+        self.assertEqual(_detect_kind("2026年前三季度业绩快报"), FilingKind.EXPRESS)
+
+    def test_real_gap_title_express(self):
+        # 600882 妙可蓝多 1225597946 — 2026-10-09 缺口的快报件真实标题
+        self.assertEqual(
+            _detect_kind("2026年前三季度业绩快报公告"),
+            FilingKind.EXPRESS,
+        )
+
+    def test_express_correction_suffix(self):
+        self.assertEqual(
+            _detect_kind("2026年前三季度业绩快报的更正公告"),
+            FilingKind.EXPRESS,
+        )
+
+    def test_express_is_not_forecast(self):
+        self.assertNotEqual(
+            _detect_kind("2026年前三季度业绩快报公告"),
+            FilingKind.FORECAST,
+        )
+
+    def test_annual_summary_still_other(self):
+        # 存量行为零变化：不含业绩词的标题仍走原有规则
+        self.assertEqual(_detect_kind("2025年年度报告摘要"), FilingKind.OTHER)
+
+
 class TestProspectusClassification(unittest.TestCase):
     """招股说明书 — IPO prospectus for SZSE via cninfo."""
 

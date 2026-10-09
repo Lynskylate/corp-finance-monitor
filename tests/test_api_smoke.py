@@ -279,6 +279,30 @@ class TestFilingsEndpoint(_ServerBase):
         finally:
             del self.engine.sources["alias-fake"]
 
+    def test_filings_kind_express_filter_and_detail(self):
+        # 2026-10-09 快报缺口：express 为独立类目，可按 kind 查询
+        # （G3 验收路径 /api/filings?kind=express），detail 返回 kind=express。
+        ref = FilingRef(
+            source="fake",
+            source_id="express-001",
+            stock_code="600882",
+            stock_name="妙可蓝多",
+            title="2026年前三季度业绩快报公告",
+            kind=FilingKind.EXPRESS,
+            published_at="2026-10-08",
+            url="",
+        )
+        self.engine.storage.store(Filing(ref=ref, content=b"%PDF-1.4\nexpress\n"))
+
+        status, body = _http_get(self.base + "/api/filings?kind=express&source=fake")
+        self.assertEqual(status, 200)
+        ids = [it["source_id"] for it in body.get("items", [])]
+        self.assertIn("express-001", ids)
+
+        status, body = _http_get(self.base + "/api/filings/fake/express-001")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["filing"]["kind"], "express")
+
     def test_filing_detail_200(self):
         ref = FilingRef(
             source="fake",
