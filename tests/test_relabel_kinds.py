@@ -305,6 +305,7 @@ class TestCmdRelabelKinds(unittest.TestCase):
         self._seed()
         out = self._run(apply=False)
         self.assertIn("Dry run only", out)
+        self.assertIn(f"State DB: {self.db_path}", out)  # 解析路径可见（防指错库静默 0 行）
         self.assertIn("1225000021", out)  # 行级 diff 必须列出 source_id
         self.assertIn("q3 -> forecast", out)
         self.assertIn("q1 -> express", out)

@@ -377,7 +377,10 @@ def cmd_relabel_kinds(args):
     try:
         plan = compute_relabel_plan(store.list_filing_kind_rows())
 
-        print(f"\nRelabel plan ({len(plan)} rows):")
+        # 解析后的 DB 绝对路径必须可见：config 相对路径按 config 文件目录
+        # 解析，指错库时 plan=0 行是唯一症状（janny runbook 注记 a6cda063）。
+        print(f"\nState DB: {store.path}")
+        print(f"Relabel plan ({len(plan)} rows):")
         print(
             f"  {'Source ID':<14s} {'From':<10s} {'To':<10s} "
             f"{'Source':<8s} {'Stock':<8s} {'Published':<12s} Title"
