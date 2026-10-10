@@ -208,8 +208,22 @@ class TestHKEXSourceFullMarket(unittest.TestCase):
                 "registry_cache_dir": self.cache_dir,
             }
         )
-        with patch("corp_finance_monitor.sources.hkex_registry.http_get") as m:
-            m.return_value = _mock_response(SAMPLE_STOCKS)
+        # NOTE: both http_get bindings must be patched — hkex_registry for the
+        # stock-list refresh, hkex for _fetch_stock_id/search during discover.
+        # Patching only hkex_registry used to leave a real network call in
+        # _fetch_stock_id, making this test flaky offline (403 on 10-09).
+        with (
+            patch("corp_finance_monitor.sources.hkex_registry.http_get") as m_reg,
+            patch("corp_finance_monitor.sources.hkex.http_get") as m_hkex,
+        ):
+            m_reg.return_value = _mock_response(SAMPLE_STOCKS)
+
+            def hkex_get(url, **kwargs):
+                if "activestock" in url:
+                    return _mock_response(SAMPLE_STOCKS)
+                return _mock_response(_hkex_search_response())
+
+            m_hkex.side_effect = hkex_get
             source.discover()
 
         self.assertIsNotNone(source._registry)
