@@ -71,5 +71,24 @@ class AbstractStateStore(ABC):
         """Clear scan progress. If source is None, clear all sources."""
         ...
 
+    # --- Kind relabel maintenance (2026-10 forecast-variant mis-shelving) ---
+
+    @abstractmethod
+    def list_filing_kind_rows(self) -> list:
+        """Return all filing_state rows as mappings with
+
+        unique_key, source, source_id, stock_code, title, kind, published_at
+        (kind-relabel maintenance scan; see core/relabel.py).
+        """
+        ...
+
+    @abstractmethod
+    def update_filing_kinds(self, updates: list[tuple[str, str]]) -> int:
+        """Atomically set kind for (new_kind, unique_key) pairs.
+
+        Returns the number of rows changed.
+        """
+        ...
+
     @abstractmethod
     def close(self): ...
