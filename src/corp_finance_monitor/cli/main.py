@@ -352,6 +352,67 @@ sources:
     print(f"  python3 main.py serve -c {path}")
 
 
+def cmd_relabel_kinds(args):
+    """One-shot kind relabel maintenance (dry-run by default).
+
+    见 core/relabel.py：仅重标注标题命中 FORECAST/EXPRESS 变体标记的
+    filing_state 行，其余行无条件跳过（scope 不变量在代码里成立）。
+    """
+    from collections import Counter
+
+    from corp_finance_monitor.core.relabel import compute_relabel_plan
+    from corp_finance_monitor.state.sqlite import SQLiteStateStore
+
+    cfg = Config.from_file(args.config)
+    if cfg.state_store.backend != "sqlite":
+        print(
+            f"Error: relabel-kinds only supports the sqlite state store, "
+            f"got backend={cfg.state_store.backend!r}.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    store = SQLiteStateStore(cfg.state_store)
+    store.initialize()
+    try:
+        plan = compute_relabel_plan(store.list_filing_kind_rows())
+
+        print(f"\nRelabel plan ({len(plan)} rows):")
+        print(
+            f"  {'Source ID':<14s} {'From':<10s} {'To':<10s} "
+            f"{'Source':<8s} {'Stock':<8s} {'Published':<12s} Title"
+        )
+        print("  " + "-" * 110)
+        for r in plan:
+            print(
+                f"  {r.source_id:<14s} {r.from_kind:<10s} {r.to_kind:<10s} "
+                f"{r.source:<8s} {r.stock_code:<8s} {r.published_at[:10]:<12s} {r.title[:48]}"
+            )
+        summary = Counter((r.from_kind, r.to_kind) for r in plan)
+        print("\nSummary:")
+        for (frm, to), n in sorted(summary.items()):
+            print(f"  {frm} -> {to}: {n}")
+
+        if not args.apply:
+            print("\nDry run only: no rows were modified. Re-run with --apply to execute.")
+            return
+
+        changed = store.update_filing_kinds([(r.to_kind, r.unique_key) for r in plan])
+        print(f"\nApplied: {changed} rows updated.")
+
+        # 幂等验证：apply 后重算 plan 必须为空。
+        remaining = compute_relabel_plan(store.list_filing_kind_rows())
+        if remaining:
+            print(
+                f"Error: relabel not idempotent: {len(remaining)} rows still differ.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        print("Verified: recomputed plan is empty (idempotent).")
+    finally:
+        store.close()
+
+
 def main():
     _register_builtin_sources()
 
@@ -444,6 +505,18 @@ def main():
     p_query.add_argument("--limit", type=int, default=50, help="最大返回数（默认 50）")
     p_query.add_argument("--json", action="store_true", help="输出 JSON 格式")
 
+    p_relabel = sub.add_parser(
+        "relabel-kinds",
+        help="一次性重标注误分类 kind（默认 dry-run，--apply 执行）",
+    )
+    p_relabel.add_argument("-c", "--config", default="config.yaml")
+    p_relabel.add_argument(
+        "--apply",
+        action="store_true",
+        help="Execute the plan (default: dry-run, print only)",
+    )
+    p_relabel.add_argument("-v", "--verbose", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "run":
@@ -462,6 +535,8 @@ def main():
         cmd_init(args)
     elif args.command == "query":
         cmd_query(args)
+    elif args.command == "relabel-kinds":
+        cmd_relabel_kinds(args)
 
 
 if __name__ == "__main__":

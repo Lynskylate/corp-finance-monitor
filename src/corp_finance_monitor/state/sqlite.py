@@ -274,6 +274,29 @@ class SQLiteStateStore(AbstractStateStore):
                 self._conn.execute("DELETE FROM scan_progress")
             self._conn.commit()
 
+    def list_filing_kind_rows(self) -> list:
+        """All filing_state rows for the kind-relabel maintenance scan."""
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT unique_key, source, source_id, stock_code, title, kind, published_at
+                FROM filing_state
+                """
+            ).fetchall()
+        return rows
+
+    def update_filing_kinds(self, updates: list[tuple[str, str]]) -> int:
+        """Atomically set kind for (new_kind, unique_key) pairs; returns rows changed."""
+        if not updates:
+            return 0
+        with self._lock:
+            cur = self._conn.executemany(
+                "UPDATE filing_state SET kind = ? WHERE unique_key = ?",
+                updates,
+            )
+            self._conn.commit()
+        return cur.rowcount
+
     def close(self):
         if self._conn:
             self._conn.close()
